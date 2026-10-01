@@ -62,6 +62,7 @@ import com.ogzhngms.ihalebak.Tender
 import com.ogzhngms.ihalebak.filtered
 import com.ogzhngms.ihalebak.lowercaseTr
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 @Composable
 fun App(vm: MainViewModel) {
@@ -157,7 +158,7 @@ private fun ProvincePicker(vm: MainViewModel, onPick: (String) -> Unit, onCancel
 @Composable
 private fun TendersScreen(vm: MainViewModel, onChangeProvince: () -> Unit) {
     val today = LocalDate.now()
-    val shown = remember(vm.tenders, vm.query, vm.categories) { vm.tenders.filtered(vm.query, vm.categories, today) }
+    val shown = remember(vm.tenders, vm.query, vm.categories) { vm.tenders.filtered(vm.query, vm.categories, LocalDateTime.now()) }
     PullToRefreshBox(isRefreshing = vm.loading && vm.tenders.isNotEmpty(), onRefresh = { vm.load(refresh = true) }, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
@@ -176,7 +177,7 @@ private fun TendersScreen(vm: MainViewModel, onChangeProvince: () -> Unit) {
                             FilterChip(selected = category in vm.categories, onClick = { vm.toggleCategory(category) }, label = { Text(category.label) })
                         }
                     }
-                    StatusLine(vm, shown.size)
+                    if (vm.tenders.isNotEmpty()) StatusLine(vm, open = shown.count { !it.cancelled }, cancelled = shown.count { it.cancelled })
                 }
             }
             when {
@@ -192,9 +193,14 @@ private fun TendersScreen(vm: MainViewModel, onChangeProvince: () -> Unit) {
 }
 
 @Composable
-private fun StatusLine(vm: MainViewModel, count: Int) {
+private fun StatusLine(vm: MainViewModel, open: Int, cancelled: Int) {
     val updated = vm.index?.updatedAt?.let { "güncellendi ${updatedText(it)}" }
-    val text = listOfNotNull("$count ihale", updated, if (vm.offline) "çevrimdışı" else null).joinToString(" · ")
+    val text = listOfNotNull(
+        "$open açık ihale",
+        if (cancelled > 0) "$cancelled iptal" else null,
+        updated,
+        if (vm.offline) "çevrimdışı" else null,
+    ).joinToString(" · ")
     Text(text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 

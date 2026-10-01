@@ -4,6 +4,24 @@ Upcoming Turkish public tenders by province and type, taken from the official da
 (Public Procurement Bulletin) of the Kamu İhale Kurumu. Information only: no bidding happens here, and the
 authoritative record is always [EKAP](https://ekap.kik.gov.tr).
 
+The repository holds two parts: the **collector** (Python, `collector/`), which turns the bulletin into JSON on
+GitHub Pages twice a day, and the **Android app** (Kotlin, Jetpack Compose, `app/`), which reads that JSON.
+
+## The app
+
+- **Browse:** pick one of the 81 provinces (each shows its number of open tenders), filter by type, search titles,
+  institutions and İKN. Tenders whose hour has passed drop off; cancelled ones are marked.
+- **Details:** institution, address, subject, quantity, date and days left. Copy the İKN and open EKAP's search,
+  add the tender to the calendar, or share it.
+- **Favourites:** saved on the device, whole, so they stay after the tender leaves the published data.
+- **Notifications:** pick provinces and types to watch. WorkManager reads the published files every few hours and
+  posts "İzmir: 3 yeni ihale" for tenders it has not seen. No server, account or Firebase is involved.
+- **Offline:** the last copy of each file is kept, so the app opens without a connection.
+
+```bash
+./gradlew testDebugUnitTest installDebug
+```
+
 ## How the data is collected
 
 ```

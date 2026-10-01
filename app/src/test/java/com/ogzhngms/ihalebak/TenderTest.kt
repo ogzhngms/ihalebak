@@ -10,6 +10,7 @@ import org.junit.Test
 
 class TenderTest {
     private val today = LocalDate.of(2026, 10, 1)
+    private val now = today.atTime(9, 0)
 
     private fun tender(ikn: String, date: String?, category: String = "mal", status: String = "open", title: String = "AKARYAKIT SATIN ALINACAKTIR") =
         Tender.parse(
@@ -47,11 +48,19 @@ class TenderTest {
             tender("4", "2026-10-03", status = "cancelled"),
             tender("5", null, title = "KÖPRÜ YAPIM İŞİ"),
         )
-        assertEquals(listOf("2", "1", "5", "4"), list.filtered("", emptySet(), today).map { it.ikn })
-        assertEquals(listOf("2"), list.filtered("", setOf(Category.SERVICES), today).map { it.ikn })
-        assertEquals(listOf("5"), list.filtered("köprü", emptySet(), today).map { it.ikn })
+        assertEquals(listOf("2", "1", "5", "4"), list.filtered("", emptySet(), now).map { it.ikn })
+        assertEquals(listOf("2"), list.filtered("", setOf(Category.SERVICES), now).map { it.ikn })
+        assertEquals(listOf("5"), list.filtered("köprü", emptySet(), now).map { it.ikn })
         // Search ignores case the Turkish way and also looks at the institution.
-        assertEquals(listOf("2", "1", "5", "4"), list.filtered("İZMİR", emptySet(), today).map { it.ikn })
+        assertEquals(listOf("2", "1", "5", "4"), list.filtered("İZMİR", emptySet(), now).map { it.ikn })
+    }
+
+    @Test
+    fun aTenderIsOverOnceItsHourHasPassedToday() {
+        val tenAm = tender("1", "2026-10-01")
+        assertEquals(false, tenAm.isOver(today.atTime(9, 59)))
+        assertEquals(true, tenAm.isOver(today.atTime(10, 1)))
+        assertEquals(false, tender("2", null).isOver(today.atTime(23, 0)))
     }
 
     @Test

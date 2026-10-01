@@ -85,11 +85,17 @@ data class Index(val updatedAt: String, val provinces: List<ProvinceCount>) {
     }
 }
 
-// Open tenders first, soonest first; cancelled ones at the end. Past tenders are dropped by the collector.
-fun List<Tender>.filtered(query: String, categories: Set<Category>, today: LocalDate): List<Tender> {
+// A tender is over once its day has passed, or its hour has on the day itself. Undated ones stay until the collector drops them.
+fun Tender.isOver(now: LocalDateTime): Boolean {
+    val day = date ?: return false
+    return day < now.toLocalDate() || (day == now.toLocalDate() && time != null && time < now.toLocalTime())
+}
+
+// Open tenders first, soonest first; cancelled ones at the end; tenders that are over are left out.
+fun List<Tender>.filtered(query: String, categories: Set<Category>, now: LocalDateTime): List<Tender> {
     val needle = query.trim().lowercaseTr()
     return filter { (categories.isEmpty() || it.category in categories) && (needle.isEmpty() || needle in it.searchText) }
-        .filter { (it.daysLeft(today) ?: 0) >= 0 }
+        .filterNot { it.isOver(now) }
         .sortedWith(compareBy<Tender> { it.cancelled }.thenBy { it.dateTime ?: LocalDateTime.MAX })
 }
 

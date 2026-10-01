@@ -10,6 +10,7 @@ import datetime as dt
 import http.cookiejar
 import io
 import re
+import ssl
 import time
 import urllib.parse
 import urllib.request
@@ -20,6 +21,12 @@ USER_AGENT = "ihalebak/1.0 (+https://github.com/ogzhngms/ihalebak; reads the pub
 
 # The archive form's category codes, and the name each one uses in this project.
 CATEGORIES = {"mal": "1", "yapim": "2", "hizmet": "3", "danismanlik": "4"}
+
+
+# EKAP speaks only TLS 1.2 with RSA key exchange (AES128-GCM-SHA256), which Python 3.10+ leaves out of its default
+# cipher list. Allow OpenSSL's default list instead; the certificate is still verified as usual.
+_TLS = ssl.create_default_context()
+_TLS.set_ciphers("DEFAULT")
 
 
 class BulletinMissing(Exception):
@@ -45,7 +52,10 @@ def download(day: dt.date, category: str, retries: int = 3) -> dict[str, bytes]:
 
 
 def _download_once(day: dt.date, category: str) -> dict[str, bytes]:
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPSHandler(context=_TLS),
+        urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()),
+    )
     opener.addheaders = [("User-Agent", USER_AGENT)]
     page = opener.open(URL, timeout=60).read().decode("utf-8", "ignore")
     form = _hidden_fields(page) | {

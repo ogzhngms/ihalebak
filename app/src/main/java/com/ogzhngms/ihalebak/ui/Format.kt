@@ -19,6 +19,11 @@ fun Tender.whenText(long: Boolean = false): String? {
     return if (time != null) "$text, saat $time" else text
 }
 
+// The date and the hour apart, for the detail screen: "2 Ekim 2026, Cuma" and "Saat 11:00".
+fun Tender.dayText(): String? = date?.format(LONG_DATE)
+
+fun Tender.hourText(): String? = time?.let { "Saat $it" }
+
 // Days left in plain words: "Bugün", "Yarın", "12 gün kaldı".
 fun remainingText(days: Long?): String? = when {
     days == null -> null

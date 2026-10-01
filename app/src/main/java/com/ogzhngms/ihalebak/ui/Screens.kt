@@ -86,7 +86,8 @@ fun DetailScreen(vm: MainViewModel, tender: Tender, onBack: () -> Unit) {
             Surface(color = if (tender.cancelled) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(14.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("İhale tarihi", style = MaterialTheme.typography.labelLarge)
-                    Text(tender.whenText(long = true) ?: "Bültende belirtilmemiş", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(tender.dayText() ?: "Bültende belirtilmemiş", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    tender.hourText()?.let { Text(it, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
                     val note = if (tender.cancelled) "Bu ihale iptal edildi." else tender.remainingText()
                     if (note != null) Text(note, style = MaterialTheme.typography.bodyLarge)
                 }

@@ -178,6 +178,9 @@ private fun TendersScreen(vm: MainViewModel, onChangeProvince: () -> Unit) {
                     }
                     SearchField(vm.query, { vm.query = it }, "İhale veya kurum ara")
                     CategoryPicker(vm.category) { vm.category = it }
+                    vm.index?.updatedAt?.let {
+                        Text("Son güncelleme: ${updatedText(it)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     if (vm.offline) {
                         Text("İnternet yok, son indirilen bilgiler gösteriliyor.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.tertiary)
                     }

@@ -11,6 +11,8 @@ import kotlinx.coroutines.launch
 
 enum class Tab { TENDERS, FAVORITES, WATCH }
 
+private const val STALE_AFTER_MS = 30 * 60 * 1000L
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = Repository(application)
     private val settings = Settings(application)
@@ -40,6 +42,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     private var job: Job? = null
+    private var loadedAt = 0L
 
     init {
         load(refresh = false)
@@ -66,6 +69,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
                 offline = loadedIndex.fromCache && refresh
+                if (!offline) loadedAt = System.currentTimeMillis()
             } catch (e: Exception) {
                 failed = index == null || (province != null && tenders.isEmpty())
                 offline = true
@@ -80,9 +84,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             index = repository.index(refresh = true).value
             province?.let { tenders = repository.province(it, refresh = true).value }
             offline = false
+            loadedAt = System.currentTimeMillis()
         } catch (e: Exception) {
             offline = true
         }
+    }
+
+    // The list may have been left open in the background for hours; bring it up to date when the app comes back.
+    fun refreshIfStale() {
+        if (!loading && loadedAt > 0 && System.currentTimeMillis() - loadedAt > STALE_AFTER_MS) load(refresh = true)
     }
 
     fun choose(slug: String) {

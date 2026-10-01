@@ -51,13 +51,13 @@ data class Tender(
             title = json.optString("title").ifBlank { json.getString("ikn") }.toTitleCaseTr(),
             category = Category.of(json.optString("category")),
             cancelled = json.optString("status") == "cancelled",
-            authority = json.optStringOrNull("authority"),
-            address = json.optStringOrNull("address"),
+            authority = json.optStringOrNull("authority")?.toTitleCaseTr(),
+            address = json.optStringOrNull("address")?.toTitleCaseTr(),
             province = json.optStringOrNull("province"),
             date = json.optStringOrNull("date")?.let(LocalDate::parse),
             time = json.optStringOrNull("time")?.let(LocalTime::parse),
-            subject = json.optStringOrNull("subject"),
-            quantity = json.optStringOrNull("quantity"),
+            subject = json.optStringOrNull("subject")?.toTitleCaseTr(),
+            quantity = json.optStringOrNull("quantity")?.toTitleCaseTr(),
             bulletinDate = json.optStringOrNull("bulletin_date")?.let(LocalDate::parse),
             correctedOn = json.optStringOrNull("corrected_on")?.let(LocalDate::parse),
             json = json.toString(),
@@ -105,10 +105,30 @@ private val TURKISH = java.util.Locale.forLanguageTag("tr")
 
 fun String.lowercaseTr(): String = lowercase(TURKISH)
 
-// Bulletin titles are in capitals ("AKARYAKIT SATIN ALINACAKTIR"); show them as "Akaryakıt Satın Alınacaktır".
+// Bulletin text is often in capitals ("İZMİR BÜYÜKŞEHİR BELEDİYE BAŞKANLIĞI"), which reads as shouting; show it as
+// "İzmir Büyükşehir Belediye Başkanlığı". Text that is mostly lower case already is left alone, and abbreviations
+// (TCDD, DSİ, A.Ş.) keep their capitals.
 fun String.toTitleCaseTr(): String {
+    val letters = filter { it.isLetter() }
+    if (letters.isEmpty() || letters.count { it.isUpperCase() } < letters.length * 0.6) return this
+    return split(" ").mapIndexed { i, word -> word.casedTr(first = i == 0) }.joinToString(" ")
+}
+
+private const val VOWELS = "AEIİOÖUÜ"
+private val ABBREVIATIONS = setOf(
+    "TC", "AŞ", "TOKİ", "DSİ", "DHMİ", "TEİAŞ", "BOTAŞ", "EÜAŞ", "TEDAŞ", "TÜBİTAK", "TPAO", "TMO", "MEB", "AFAD", "OSB",
+    "İSKİ", "ASKİ", "İZSU", "İETT", "BUSKİ", "ESHOT", "TİGEM", "ETİ", "TKİ", "KİT", "MAPEG", "TÜİK", "SGK", "TSK", "EGO",
+)
+private val SMALL_WORDS = setOf("ve", "ile", "veya", "ya", "da", "de", "ki", "için")
+
+private fun String.casedTr(first: Boolean): String {
     if (any { it.isLowerCase() }) return this
-    return lowercase(TURKISH).split(" ").joinToString(" ") { word ->
-        word.replaceFirstChar { it.titlecase(TURKISH) }
+    val core = filter { it.isLetter() }
+    if (core.isEmpty() || core in ABBREVIATIONS || (core.length >= 3 && core.none { it in VOWELS })) return this
+    val lower = lowercase(TURKISH)
+    if (!first && lower in SMALL_WORDS) return lower
+    // Capital after a hyphen, slash, bracket or full stop too: "Bakım-Onarım", "Merkez/İzmir", "Ltd.Şti.".
+    return buildString {
+        lower.forEachIndexed { i, c -> append(if (i == 0 || lower[i - 1] in "-/(.\"") c.titlecase(TURKISH) else c.toString()) }
     }
 }

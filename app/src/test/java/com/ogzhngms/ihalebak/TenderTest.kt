@@ -70,4 +70,12 @@ class TenderTest {
         assertEquals(listOf("2"), newTenders(current, seen = setOf("1"), categories = emptySet()).map { it.ikn })
         assertEquals(emptyList<String>(), newTenders(current, seen = setOf("1"), categories = setOf(Category.GOODS)).map { it.ikn })
     }
+
+    @Test
+    fun capitalsAreShownAsTitleCaseButAbbreviationsStay() {
+        assertEquals("İzmir Büyükşehir Belediye Başkanlığı", "İZMİR BÜYÜKŞEHİR BELEDİYE BAŞKANLIĞI".toTitleCaseTr())
+        assertEquals("TCDD Bakım-Onarım ve Temizlik Hizmeti", "TCDD BAKIM-ONARIM VE TEMİZLİK HİZMETİ".toTitleCaseTr())
+        assertEquals("DSİ 21. Bölge Müdürlüğü", "DSİ 21. BÖLGE MÜDÜRLÜĞÜ".toTitleCaseTr())
+        assertEquals("Konak Belediyesi KGM", "Konak Belediyesi KGM".toTitleCaseTr())
+    }
 }

@@ -16,7 +16,7 @@ import urllib.request
 import zipfile
 
 URL = "https://ekap.kik.gov.tr/ekap/ilan/bultenindirme.aspx"
-USER_AGENT = "ihale-takip/1.0 (+https://github.com/ogzhngms; reads the public Kamu Ihale Bulteni)"
+USER_AGENT = "ihalebak/1.0 (+https://github.com/ogzhngms/ihalebak; reads the public Kamu Ihale Bulteni)"
 
 # The archive form's category codes, and the name each one uses in this project.
 CATEGORIES = {"mal": "1", "yapim": "2", "hizmet": "3", "danismanlik": "4"}

@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 from collector.cities import PROVINCES, slug
+from collector.parse import tidy_address
 
 # How long finished or undated records stay before they are dropped.
 KEEP_CANCELLED_DAYS = 7
@@ -63,7 +64,9 @@ def load(out: Path) -> dict[str, dict]:
     path = out / "all.json"
     if not path.exists():
         return {}
-    return {record["ikn"]: record for record in json.loads(path.read_text(encoding="utf-8"))["tenders"]}
+    records = json.loads(path.read_text(encoding="utf-8"))["tenders"]
+    # Records kept from earlier runs get the same address clean-up as fresh ones.
+    return {record["ikn"]: record | {"address": tidy_address(record.get("address"))} for record in records}
 
 
 def write(store: dict[str, dict], out: Path, updated_at: str, bulletins: list[str], errors: list[str]) -> None:

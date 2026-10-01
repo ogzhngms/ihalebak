@@ -64,6 +64,22 @@ def _clean(text: str | None) -> str | None:
     return text or None
 
 
+# EKAP appends the district and province to the address the institution typed, which often already ends with
+# them: "... Merkez/Edirne Edirne Merkez/Edirne". Cut after the first "/Province" that the address ends with.
+_SLASH_PLACE = re.compile(r"/\s*([^\s/]+)")
+
+
+def tidy_address(address: str | None) -> str | None:
+    if not address:
+        return address
+    places = list(_SLASH_PLACE.finditer(address))
+    if len(places) < 2:
+        return address
+    last = places[-1].group(1).casefold()
+    first = next(m for m in places if m.group(1).casefold() == last)
+    return address[: first.end()]
+
+
 def _iso_date(day: str, month: str, year: str) -> str:
     return f"{year}-{int(month):02d}-{int(day):02d}"
 
@@ -126,7 +142,7 @@ def parse_notices(text: str, category: str, bulletin_date: str) -> list[dict]:
 
 def _fields(notice: dict, body: str) -> dict:
     authority = _clean(_first(_AUTHORITY, body)) or _capitals_before_ikn(body)
-    address = _clean(_first(_ADDRESS, body))
+    address = tidy_address(_clean(_first(_ADDRESS, body)))
     when = _WHEN.search(body)
     cancelled = _CANCELLED_ON.search(body)
     notice = notice | {

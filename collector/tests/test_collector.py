@@ -90,6 +90,12 @@ class CitiesTest(unittest.TestCase):
         self.assertEqual("Afyonkarahisar", find_province("Merkez/AFYON"))
         self.assertIsNone(find_province("Merkez Mahallesi"))
 
+    def test_drops_the_district_and_province_repeated_after_an_address(self):
+        from collector.parse import tidy_address
+        self.assertEqual(tidy_address("Kocasinan Mah. No:2 Merkez/Edirne Edirne Merkez/Edirne"), "Kocasinan Mah. No:2 Merkez/Edirne")
+        self.assertEqual(tidy_address("Selim Cad. No:43/A Merkez/Kırklareli Kırklareli Merkez İlçe/Kırklareli"), "Selim Cad. No:43/A Merkez/Kırklareli")
+        self.assertEqual(tidy_address("Gaziler Caddesi No:185 35110 Konak/İzmir"), "Gaziler Caddesi No:185 35110 Konak/İzmir")
+
     def test_slugs_are_ascii(self):
         self.assertEqual("sanliurfa", slug("Şanlıurfa"))
         self.assertEqual("istanbul", slug("İstanbul"))

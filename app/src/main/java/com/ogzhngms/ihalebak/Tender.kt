@@ -42,8 +42,8 @@ data class Tender(
     // Days from today to the tender: 0 is today, negative has passed, null when the bulletin gave no date.
     fun daysLeft(today: LocalDate): Long? = date?.let { ChronoUnit.DAYS.between(today, it) }
 
-    // Title, subject, institution and İKN, lower-cased the Turkish way, for search.
-    val searchText: String by lazy { listOfNotNull(title, subject, authority, ikn).joinToString(" ").lowercaseTr() }
+    // Title, subject, institution and İKN, folded like the query, for search.
+    val searchText: String by lazy { listOfNotNull(title, subject, authority, ikn).joinToString(" ").searchKey() }
 
     companion object {
         fun parse(json: JSONObject): Tender = Tender(
@@ -93,7 +93,7 @@ fun Tender.isOver(now: LocalDateTime): Boolean {
 
 // Open tenders first, soonest first; cancelled ones at the end; tenders that are over are left out.
 fun List<Tender>.filtered(query: String, categories: Set<Category>, now: LocalDateTime): List<Tender> {
-    val needle = query.trim().lowercaseTr()
+    val needle = query.trim().searchKey()
     return filter { (categories.isEmpty() || it.category in categories) && (needle.isEmpty() || needle in it.searchText) }
         .filterNot { it.isOver(now) }
         .sortedWith(compareBy<Tender> { it.cancelled }.thenBy { it.dateTime ?: LocalDateTime.MAX })
@@ -104,6 +104,12 @@ private fun JSONObject.optStringOrNull(name: String): String? = if (has(name) &&
 private val TURKISH = java.util.Locale.forLanguageTag("tr")
 
 fun String.lowercaseTr(): String = lowercase(TURKISH)
+
+// Lower case without Turkish letters, so "insaat" finds "İnşaat" and "eskisehir" finds "Eskişehir": many people
+// type without ç, ğ, ı, ö, ş and ü.
+fun String.searchKey(): String = lowercaseTr().map { PLAIN[it] ?: it }.joinToString("")
+
+private val PLAIN = mapOf('ç' to 'c', 'ğ' to 'g', 'ı' to 'i', 'ö' to 'o', 'ş' to 's', 'ü' to 'u', 'â' to 'a', 'î' to 'i', 'û' to 'u')
 
 // Bulletin text is often in capitals ("İZMİR BÜYÜKŞEHİR BELEDİYE BAŞKANLIĞI"), which reads as shouting; show it as
 // "İzmir Büyükşehir Belediye Başkanlığı". Text that is mostly lower case already is left alone, and abbreviations
@@ -124,7 +130,7 @@ private val SMALL_WORDS = setOf("ve", "ile", "veya", "ya", "da", "de", "ki", "i�
 private fun String.casedTr(first: Boolean): String {
     if (any { it.isLowerCase() }) return this
     val core = filter { it.isLetter() }
-    if (core.isEmpty() || core in ABBREVIATIONS || (core.length >= 3 && core.none { it in VOWELS })) return this
+    if (core.isEmpty() || core in ABBREVIATIONS || (core.length >= 2 && core.none { it in VOWELS })) return this
     val lower = lowercase(TURKISH)
     if (!first && lower in SMALL_WORDS) return lower
     // Capital after a hyphen, slash, bracket or full stop too: "Bakım-Onarım", "Merkez/İzmir", "Ltd.Şti.".

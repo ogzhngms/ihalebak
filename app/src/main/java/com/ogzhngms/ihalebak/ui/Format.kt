@@ -11,11 +11,13 @@ import java.util.Locale
 private val TURKISH = Locale.forLanguageTag("tr")
 private val LONG_DATE = DateTimeFormatter.ofPattern("d MMMM yyyy, EEEE", TURKISH)
 private val SHORT_DATE = DateTimeFormatter.ofPattern("d MMMM yyyy", TURKISH)
+private val DAY_MONTH = DateTimeFormatter.ofPattern("d MMMM", TURKISH)
 private val UPDATED = DateTimeFormatter.ofPattern("d MMMM HH:mm", TURKISH)
 
-fun Tender.whenText(long: Boolean = false): String? {
+// "8 Ekim 2026, saat 14:00"; on a card this year's tenders leave the year out so the line stays short.
+fun Tender.whenText(long: Boolean = false, withYear: Boolean = true): String? {
     val day = date ?: return null
-    val text = day.format(if (long) LONG_DATE else SHORT_DATE)
+    val text = day.format(if (long) LONG_DATE else if (withYear) SHORT_DATE else DAY_MONTH)
     return if (time != null) "$text, saat $time" else text
 }
 

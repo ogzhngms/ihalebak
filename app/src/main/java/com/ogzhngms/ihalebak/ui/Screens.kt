@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -69,9 +70,10 @@ import com.ogzhngms.ihalebak.canNotify
 import java.time.LocalDate
 import java.time.ZoneId
 
-// EKAP's own search page; a tender has no stable public link, so the İKN is copied for its search box.
 private const val EKAP_HOME = "https://ekap.kik.gov.tr"
-private const val EKAP_SEARCH = "https://ekap.kik.gov.tr/EKAP/Ortak/IhaleArama/index.html"
+// EKAP's tender search. A tender has no public link of its own, and the search asks for the İKN in two boxes
+// (year and number), so the app says what to type before opening it.
+private const val EKAP_SEARCH = "https://ekapv2.kik.gov.tr/ekap/search"
 private val ISTANBUL = ZoneId.of("Europe/Istanbul")
 
 // The date first and large, then the facts with plain labels, then one action per full-width button.
@@ -79,6 +81,8 @@ private val ISTANBUL = ZoneId.of("Europe/Istanbul")
 fun DetailScreen(vm: MainViewModel, tender: Tender, onBack: () -> Unit) {
     val context = LocalContext.current
     val saved = vm.isFavorite(tender)
+    var explaining by rememberSaveable { mutableStateOf(false) }
+    if (explaining) EkapHelp(tender, onOpen = { explaining = false; openOnEkap(context, tender) }, onDismiss = { explaining = false })
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()) {
         BackRow("İhale", onBack)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -107,7 +111,7 @@ fun DetailScreen(vm: MainViewModel, tender: Tender, onBack: () -> Unit) {
                 }
             }
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = { openOnEkap(context, tender) }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                Button(onClick = { explaining = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
                     Icon(painterResource(R.drawable.ic_open), null, Modifier.size(20.dp))
                     Spacer(Modifier.width(10.dp))
                     Text("EKAP'ta aç", style = MaterialTheme.typography.titleSmall)
@@ -270,8 +274,32 @@ private fun copy(context: Context, text: String, message: String) {
 }
 
 private fun openOnEkap(context: Context, tender: Tender) {
-    copy(context, tender.ikn, "İhale numarası kopyalandı. EKAP'ta arama kutusuna yapıştırın.")
-    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(EKAP_SEARCH)))
+    context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("İKN", tender.ikn))
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(EKAP_SEARCH))) }
+        .onFailure { Toast.makeText(context, "Tarayıcı bulunamadı", Toast.LENGTH_SHORT).show() }
+}
+
+@Composable
+private fun EkapHelp(tender: Tender, onOpen: () -> Unit, onDismiss: () -> Unit) {
+    val (year, number) = tender.ikn.split("/").let { it.first() to it.getOrElse(1) { "" } }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("EKAP'ta nasıl bulunur?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("EKAP'ın arama sayfası açılacak. \"İKN\" kutularına şunları yazın:", style = MaterialTheme.typography.bodyLarge)
+                Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(12.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Yıl: $year", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("Numara: $number", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Text("EKAP bazen önce kısa bir güvenlik kontrolü ister.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        confirmButton = { Button(onClick = onOpen, modifier = Modifier.heightIn(min = 48.dp)) { Text("EKAP'ı aç") } },
+        dismissButton = { TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("Vazgeç") } },
+    )
 }
 
 private fun addToCalendar(context: Context, tender: Tender) {

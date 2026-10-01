@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 
 package com.ogzhngms.ihalebak.ui
 
@@ -15,6 +15,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -60,7 +64,8 @@ import com.ogzhngms.ihalebak.R
 import com.ogzhngms.ihalebak.Tab
 import com.ogzhngms.ihalebak.Tender
 import com.ogzhngms.ihalebak.filtered
-import com.ogzhngms.ihalebak.lowercaseTr
+import com.ogzhngms.ihalebak.searchKey
+import java.text.Collator
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -74,6 +79,7 @@ fun App(vm: MainViewModel) {
     }
     var picking by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = picking) { picking = false }
+    BackHandler(enabled = !picking && vm.tab != Tab.TENDERS) { vm.tab = Tab.TENDERS }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -86,9 +92,9 @@ fun App(vm: MainViewModel) {
         },
         bottomBar = {
             NavigationBar {
-                NavigationBarItem(vm.tab == Tab.TENDERS, { vm.tab = Tab.TENDERS }, { Icon(painterResource(R.drawable.ic_list), null) }, label = { Text("İhaleler") })
-                NavigationBarItem(vm.tab == Tab.FAVORITES, { vm.tab = Tab.FAVORITES }, { Icon(painterResource(R.drawable.ic_star), null) }, label = { Text("Kaydettiklerim") })
-                NavigationBarItem(vm.tab == Tab.WATCH, { vm.tab = Tab.WATCH }, { Icon(painterResource(R.drawable.ic_bell), null) }, label = { Text("Bildirimler") })
+                NavigationBarItem(vm.tab == Tab.TENDERS, { vm.tab = Tab.TENDERS }, { Icon(painterResource(R.drawable.ic_list), null) }, label = { NavLabel("İhaleler") })
+                NavigationBarItem(vm.tab == Tab.FAVORITES, { vm.tab = Tab.FAVORITES }, { Icon(painterResource(R.drawable.ic_star), null) }, label = { NavLabel("Kayıtlı") })
+                NavigationBarItem(vm.tab == Tab.WATCH, { vm.tab = Tab.WATCH }, { Icon(painterResource(R.drawable.ic_bell), null) }, label = { NavLabel("Bildirimler") })
             }
         },
         containerColor = MaterialTheme.colorScheme.background,
@@ -113,7 +119,12 @@ fun App(vm: MainViewModel) {
     }
 }
 
-// The 81 provinces, busiest first, each a large row with its number of open tenders.
+private val TURKISH_ORDER: Comparator<String> = Collator.getInstance(java.util.Locale.forLanguageTag("tr")).let { c -> Comparator { a, b -> c.compare(a, b) } }
+
+@Composable
+private fun NavLabel(text: String) = Text(text, maxLines = 1, softWrap = false)
+
+// The 81 provinces in alphabetical order, as on any official form, each a large row with its number of open tenders.
 @Composable
 fun ProvincePicker(vm: MainViewModel, title: String, onPick: (String) -> Unit, onCancel: (() -> Unit)?) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -130,8 +141,11 @@ fun ProvincePicker(vm: MainViewModel, title: String, onPick: (String) -> Unit, o
             index == null && vm.loading -> Loading()
             index == null -> Problem("Şehir listesi yüklenemedi. İnternet bağlantını kontrol et.") { vm.load(refresh = true) }
             else -> {
-                val needle = query.trim().lowercaseTr()
-                val provinces = index.provinces.filter { needle.isEmpty() || needle in it.name.lowercaseTr() }.sortedByDescending { it.open }
+                val needle = query.trim().searchKey()
+                val provinces = remember(index, needle) {
+                    index.provinces.filter { needle.isEmpty() || needle in it.name.searchKey() }.sortedWith(compareBy(TURKISH_ORDER) { it.name })
+                }
+                if (provinces.isEmpty()) Empty("\"$query\" adında bir şehir bulunamadı.")
                 LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
                     items(provinces, key = { it.slug }) { province ->
                         Row(
@@ -156,7 +170,9 @@ fun ProvincePicker(vm: MainViewModel, title: String, onPick: (String) -> Unit, o
 @Composable
 private fun TendersScreen(vm: MainViewModel, onChangeProvince: () -> Unit) {
     val today = LocalDate.now()
+    val all = remember(vm.tenders) { vm.tenders.filtered("", emptySet(), LocalDateTime.now()) }
     val shown = remember(vm.tenders, vm.query, vm.category) { vm.tenders.filtered(vm.query, setOfNotNull(vm.category), LocalDateTime.now()) }
+    val narrowed = vm.query.isNotBlank() || vm.category != null
     PullToRefreshBox(isRefreshing = vm.loading && vm.tenders.isNotEmpty(), onRefresh = { vm.load(refresh = true) }, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
@@ -166,7 +182,7 @@ private fun TendersScreen(vm: MainViewModel, onChangeProvince: () -> Unit) {
                         Column(Modifier.weight(1f)) {
                             Text(vm.provinceName(vm.province) ?: "", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                             if (vm.tenders.isNotEmpty()) {
-                                val open = shown.count { !it.cancelled }
+                                val open = all.count { !it.cancelled }
                                 Text(
                                     if (open == 0) "Açık ihale yok" else "$open açık ihale",
                                     style = MaterialTheme.typography.bodyLarge,
@@ -181,7 +197,7 @@ private fun TendersScreen(vm: MainViewModel, onChangeProvince: () -> Unit) {
                     vm.index?.updatedAt?.let {
                         Text("Son güncelleme: ${updatedText(it)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    if (vm.offline) {
+                    if (vm.offline && !vm.failed) {
                         Text("İnternet yok, son indirilen bilgiler gösteriliyor.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.tertiary)
                     }
                 }
@@ -192,7 +208,10 @@ private fun TendersScreen(vm: MainViewModel, onChangeProvince: () -> Unit) {
                 shown.isEmpty() -> item {
                     Empty(if (vm.query.isBlank() && vm.category == null) "Bu şehirde şu an açık ihale görünmüyor." else "Aramana uyan ihale yok.")
                 }
-                else -> items(shown, key = { it.ikn }) { tender -> TenderCard(tender, today) { vm.selected = tender } }
+                else -> {
+                    if (narrowed) item { Text("${shown.size} ihale bulundu", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
+                    items(shown, key = { it.ikn }) { tender -> TenderCard(tender, today) { vm.selected = tender } }
+                }
             }
             item { Disclaimer(Modifier.padding(top = 8.dp)) }
         }
@@ -203,12 +222,13 @@ private fun TendersScreen(vm: MainViewModel, onChangeProvince: () -> Unit) {
 @Composable
 private fun CategoryPicker(selected: Category?, onPick: (Category?) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    Box {
+    BoxWithConstraints {
+        val width = maxWidth
         OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = RoundedCornerShape(12.dp)) {
             Text("Tür: " + (selected?.label ?: "Tümü"), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             Icon(painterResource(R.drawable.ic_expand), null)
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.width(width)) {
             (listOf<Category?>(null) + Category.entries).forEach { option ->
                 DropdownMenuItem(
                     text = {
@@ -243,13 +263,18 @@ fun TenderCard(tender: Tender, today: LocalDate, onClick: () -> Unit) {
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.size(2.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
-                    tender.whenText() ?: "Tarih belirtilmemiş",
+                    tender.whenText(withYear = tender.date?.year != today.year) ?: "Tarih belirtilmemiş",
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.padding(end = 8.dp),
                 )
                 if (tender.cancelled) Tag("İptal edildi", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
                 else tender.remainingText()?.let { text ->

@@ -52,7 +52,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.ogzhngms.ihalebak.Category
 import com.ogzhngms.ihalebak.MainViewModel
@@ -63,6 +70,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 // EKAP's own search page; a tender has no stable public link, so the İKN is copied for its search box.
+private const val EKAP_HOME = "https://ekap.kik.gov.tr"
 private const val EKAP_SEARCH = "https://ekap.kik.gov.tr/EKAP/Ortak/IhaleArama/index.html"
 private val ISTANBUL = ZoneId.of("Europe/Istanbul")
 
@@ -132,14 +140,19 @@ private fun Field(label: String, value: String) {
     }
 }
 
+// Google Play asks apps that show government information to say plainly that they are not official and to
+// name their source; this says both, on every screen that lists tenders.
 @Composable
-fun Disclaimer() {
-    Text(
-        "Bilgiler, Kamu İhale Kurumu'nun yayımladığı Kamu İhale Bülteni'nden otomatik olarak derlenir. " +
-            "Kesin bilgi ve ihale belgeleri için EKAP'ı kontrol edin.",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+fun Disclaimer(modifier: Modifier = Modifier) {
+    val link = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline))
+    val text = buildAnnotatedString {
+        withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
+            append("İhaleBak resmi bir devlet uygulaması değildir; Kamu İhale Kurumu veya EKAP ile bağlantısı yoktur. ")
+        }
+        append("Bilgiler, Kamu İhale Kurumu'nun herkese açık Kamu İhale Bülteni'nden otomatik derlenir ve hata içerebilir. Kesin bilgi için: ")
+        withLink(LinkAnnotation.Url(EKAP_HOME, link)) { append("ekap.kik.gov.tr") }
+    }
+    Text(text, modifier, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable

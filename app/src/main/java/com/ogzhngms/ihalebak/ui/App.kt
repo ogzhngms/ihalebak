@@ -191,6 +191,7 @@ private fun TendersScreen(vm: MainViewModel, onChangeProvince: () -> Unit) {
                 }
                 else -> items(shown, key = { it.ikn }) { tender -> TenderCard(tender, today) { vm.selected = tender } }
             }
+            item { Disclaimer(Modifier.padding(top = 8.dp)) }
         }
     }
 }

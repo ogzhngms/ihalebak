@@ -44,6 +44,10 @@ jobs:
       - name: Collect
         run: python -m collector.run --out site/data --days "${{ inputs.days || '2' }}"
 
+      # The home page and privacy policy live in pages/ on main; they go out with every run.
+      - name: Add the web pages
+        run: cp pages/*.html site/
+
       # The data branch is replaced, not appended to, so the repository does not grow with every run.
       - name: Publish
         working-directory: site

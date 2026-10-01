@@ -47,6 +47,7 @@ EKAP bulletin page ─► fetch.py (zip of PDFs) ─► parse.py (one record per
 | `data/il/<province>.json` | That province's tenders, e.g. `data/il/izmir.json` |
 | `data/il/bilinmeyen.json` | Notices whose province could not be read |
 | `data/all.json` | Everything; the collector's own memory between runs |
+| `index.html`, `gizlilik.html` | Home page and privacy policy, copied from `pages/` on every run |
 
 A tender looks like this:
 

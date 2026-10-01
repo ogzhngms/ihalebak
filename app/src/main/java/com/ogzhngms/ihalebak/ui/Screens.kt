@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalLayoutApi::class)
-
 package com.ogzhngms.ihalebak.ui
 
 import android.Manifest
@@ -11,18 +9,19 @@ import android.net.Uri
 import android.os.Build
 import android.provider.CalendarContract
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -30,18 +29,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,7 +59,6 @@ import com.ogzhngms.ihalebak.MainViewModel
 import com.ogzhngms.ihalebak.R
 import com.ogzhngms.ihalebak.Tender
 import com.ogzhngms.ihalebak.canNotify
-import com.ogzhngms.ihalebak.lowercaseTr
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -67,72 +66,68 @@ import java.time.ZoneId
 private const val EKAP_SEARCH = "https://ekap.kik.gov.tr/EKAP/Ortak/IhaleArama/index.html"
 private val ISTANBUL = ZoneId.of("Europe/Istanbul")
 
+// The date first and large, then the facts with plain labels, then one action per full-width button.
 @Composable
 fun DetailScreen(vm: MainViewModel, tender: Tender, onBack: () -> Unit) {
     val context = LocalContext.current
-    val today = LocalDate.now()
-    val favorite = vm.isFavorite(tender)
-    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        BackRow("İhale ayrıntısı", onBack)
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                tender.category?.let { Tag(it.label, MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer) }
-                if (tender.cancelled) Tag("İptal edildi", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
-                else daysLeftText(tender.daysLeft(today))?.let { Tag(it, MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer) }
-            }
+    val saved = vm.isFavorite(tender)
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()) {
+        BackRow("İhale", onBack)
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(tender.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(1.dp)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Field("İhale tarihi", tender.whenText(long = true) ?: "Bültende belirtilmemiş")
-                    tender.authority?.let { Field("İdare", it) }
-                    tender.province?.let { Field("İl", it) }
-                    tender.address?.let { Field("Adres", it) }
-                    tender.subject?.let { Field("İşin adı", it) }
-                    tender.quantity?.let { Field("Niteliği, türü ve miktarı", it) }
-                    Field("İhale kayıt numarası (İKN)", tender.ikn)
-                    tender.bulletinDate?.let { Field("Bülten tarihi", it.shortText()) }
-                    tender.correctedOn?.let { Field("Düzeltme ilanı", it.shortText()) }
+            Surface(color = if (tender.cancelled) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(14.dp)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("İhale tarihi", style = MaterialTheme.typography.labelLarge)
+                    Text(tender.whenText(long = true) ?: "Bültende belirtilmemiş", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    val note = if (tender.cancelled) "Bu ihale iptal edildi." else tender.remainingText()
+                    if (note != null) Text(note, style = MaterialTheme.typography.bodyLarge)
                 }
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { vm.toggleFavorite(tender) }) {
-                    Icon(painterResource(if (favorite) R.drawable.ic_star else R.drawable.ic_star_outline), null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (favorite) "Favorilerde" else "Favorilere ekle")
-                }
-                if (tender.dateTime != null && !tender.cancelled) {
-                    OutlinedButton(onClick = { addToCalendar(context, tender) }) {
-                        Icon(painterResource(R.drawable.ic_event), null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Takvime ekle")
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(1.dp), shape = RoundedCornerShape(14.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    tender.authority?.let { Field("Kurum", it) }
+                    tender.province?.let { Field("Şehir", it) }
+                    tender.category?.let { Field("Türü", it.label) }
+                    tender.subject?.let { Field("İşin adı", it) }
+                    tender.quantity?.let { Field("Miktarı", it) }
+                    tender.address?.let { Field("Adres", it) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) { Field("İhale kayıt numarası", tender.ikn) }
+                        TextButton(onClick = { copy(context, tender.ikn, "Numara kopyalandı") }) { Text("Kopyala") }
                     }
                 }
-                OutlinedButton(onClick = { share(context, tender) }) {
-                    Icon(painterResource(R.drawable.ic_share), null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Paylaş")
-                }
-                OutlinedButton(onClick = { copy(context, tender.ikn, "İKN kopyalandı") }) {
-                    Icon(painterResource(R.drawable.ic_copy), null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("İKN kopyala")
-                }
             }
-            Button(onClick = { openOnEkap(context, tender) }, modifier = Modifier.fillMaxWidth()) {
-                Icon(painterResource(R.drawable.ic_open), null, Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("EKAP'ta aç")
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(onClick = { openOnEkap(context, tender) }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                    Icon(painterResource(R.drawable.ic_open), null, Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text("EKAP'ta aç", style = MaterialTheme.typography.titleSmall)
+                }
+                BigOutlined(if (saved) "Kaydedildi" else "Kaydet", if (saved) R.drawable.ic_star else R.drawable.ic_star_outline) { vm.toggleFavorite(tender) }
+                if (tender.dateTime != null && !tender.cancelled) {
+                    BigOutlined("Takvime ekle", R.drawable.ic_event) { addToCalendar(context, tender) }
+                }
+                BigOutlined("Paylaş", R.drawable.ic_share) { share(context, tender) }
             }
             Disclaimer()
-            Spacer(Modifier.padding(4.dp))
+            Spacer(Modifier.size(8.dp))
         }
+    }
+}
+
+@Composable
+private fun BigOutlined(text: String, icon: Int, onClick: () -> Unit) {
+    OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+        Icon(painterResource(icon), null, Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(text, style = MaterialTheme.typography.titleSmall)
     }
 }
 
 @Composable
 private fun Field(label: String, value: String) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodyLarge)
     }
 }
@@ -141,8 +136,8 @@ private fun Field(label: String, value: String) {
 fun Disclaimer() {
     Text(
         "Bilgiler, Kamu İhale Kurumu'nun yayımladığı Kamu İhale Bülteni'nden otomatik olarak derlenir. " +
-            "Kesin bilgi ve ihale dokümanı için EKAP'ı kontrol et.",
-        style = MaterialTheme.typography.bodySmall,
+            "Kesin bilgi ve ihale belgeleri için EKAP'ı kontrol edin.",
+        style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
@@ -153,93 +148,106 @@ fun FavoritesScreen(vm: MainViewModel) {
     val favorites = remember(vm.favorites) { vm.favorites.sortedWith(compareBy<Tender> { it.cancelled }.thenBy { it.dateTime }) }
     if (favorites.isEmpty()) {
         Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Icon(painterResource(R.drawable.ic_star_outline), null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(48.dp))
-            Empty("Henüz favori ihalen yok. Bir ihalenin ayrıntısında \"Favorilere ekle\"ye dokun.")
+            Icon(painterResource(R.drawable.ic_star_outline), null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(56.dp))
+            Empty("Henüz kaydettiğin ihale yok.\nBir ihaleyi açıp \"Kaydet\"e dokunursan burada görünür.")
         }
         return
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(favorites, key = { it.ikn }) { tender -> TenderCard(tender, today, favorite = true) { vm.selected = tender } }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { Text("Kaydettiğin ihaleler", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
+        items(favorites, key = { it.ikn }) { tender -> TenderCard(tender, today) { vm.selected = tender } }
     }
 }
 
-// Pick provinces and types to be notified about; the app checks every few hours on its own, no account needed.
+// Only the provinces being watched are listed, with one clear button to add another.
 @Composable
 fun WatchScreen(vm: MainViewModel) {
     val context = LocalContext.current
     var allowed by remember { mutableStateOf(canNotify(context)) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed = it }
-    var query by rememberSaveable { mutableStateOf("") }
-    val provinces = vm.index?.provinces.orEmpty()
-    val needle = query.trim().lowercaseTr()
-    val shown = provinces.filter { needle.isEmpty() || needle in it.name.lowercaseTr() }
-        .sortedWith(compareByDescending<com.ogzhngms.ihalebak.ProvinceCount> { it.slug in vm.watchedProvinces }.thenByDescending { it.open })
-
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
-            Text(
-                "Seçtiğin illerde yeni ihale çıkınca haber verelim. Uygulama birkaç saatte bir kendisi kontrol eder; hesap açman gerekmez.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (!allowed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            item {
-                Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = MaterialTheme.shapes.medium) {
-                    Column(Modifier.padding(14.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Bildirim izni kapalı", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onTertiaryContainer)
-                        Text("Yeni ihaleleri gösterebilmemiz için bildirimlere izin ver.", color = MaterialTheme.colorScheme.onTertiaryContainer)
-                        Button(onClick = { permission.launch(Manifest.permission.POST_NOTIFICATIONS) }) { Text("İzin ver") }
-                    }
-                }
-            }
-        }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("İhale türleri", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Category.entries.forEach { category ->
-                        FilterChip(selected = category in vm.watchedCategories, onClick = { vm.toggleWatchedCategory(category) }, label = { Text(category.label) })
-                    }
-                }
-                Text(
-                    if (vm.watchedCategories.isEmpty()) "Hiçbiri seçili değilse hepsi bildirilir." else "Sadece seçili türler bildirilir.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "İller" + if (vm.watchedProvinces.isNotEmpty()) " (${vm.watchedProvinces.size} seçili)" else "",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                SearchField(query, { query = it }, "İl ara")
-            }
-        }
-        item {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(1.dp)) {
-                Column {
-                    shown.forEachIndexed { i, province ->
-                        if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        val watched = province.slug in vm.watchedProvinces
-                        Row(
-                            Modifier.fillMaxWidth().clickable { vm.toggleWatchedProvince(province.slug) }.padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(province.name, style = MaterialTheme.typography.bodyLarge)
-                                Text("${province.open} açık ihale", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Switch(checked = watched, onCheckedChange = { vm.toggleWatchedProvince(province.slug) })
-                        }
-                    }
-                }
-            }
-        }
-        item { Disclaimer() }
+    var adding by rememberSaveable { mutableStateOf(false) }
+    BackHandler(enabled = adding) { adding = false }
+    if (adding) {
+        ProvincePicker(
+            vm,
+            title = "Hangi şehri takip edelim?",
+            onPick = { slug ->
+                if (slug !in vm.watchedProvinces) vm.toggleWatchedProvince(slug)
+                adding = false
+                if (!allowed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            },
+            onCancel = { adding = false },
+        )
+        return
     }
+    val watched = vm.index?.provinces.orEmpty().filter { it.slug in vm.watchedProvinces }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("Yeni ihale bildirimleri", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(
+            "Takip ettiğin şehirlerde yeni ihale çıkınca telefonuna bildirim gelir. Hesap açman gerekmez.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (!allowed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && watched.isNotEmpty()) {
+            Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = RoundedCornerShape(14.dp)) {
+                Column(Modifier.padding(16.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Bildirimler kapalı", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                    Text("Haber verebilmemiz için bildirimlere izin ver.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                    Button(onClick = { permission.launch(Manifest.permission.POST_NOTIFICATIONS) }, modifier = Modifier.heightIn(min = 52.dp)) { Text("İzin ver") }
+                }
+            }
+        }
+
+        Text("Takip ettiğin şehirler", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(1.dp), shape = RoundedCornerShape(14.dp)) {
+            Column {
+                if (watched.isEmpty()) {
+                    Text("Henüz şehir eklemedin.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
+                }
+                watched.forEach { province ->
+                    Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(province.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { vm.toggleWatchedProvince(province.slug) }) { Text("Kaldır") }
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+                TextButton(onClick = { adding = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                    Text("+ Şehir ekle", style = MaterialTheme.typography.titleSmall)
+                }
+            }
+        }
+
+        Text("Hangi ihaleler?", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(1.dp), shape = RoundedCornerShape(14.dp)) {
+            Column {
+                // Nothing chosen means everything, so show every box ticked in that case.
+                val chosen = vm.watchedCategories.ifEmpty { Category.entries.toSet() }
+                Category.entries.forEachIndexed { i, category ->
+                    if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    val on = category in chosen
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { toggleKind(vm, chosen, category) }.padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = on, onCheckedChange = { toggleKind(vm, chosen, category) })
+                        Text(category.label, style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
+        }
+        vm.index?.updatedAt?.let {
+            Text("Bilgiler en son ${updatedText(it)} tarihinde güncellendi.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Disclaimer()
+    }
+}
+
+// Keeps at least one type chosen, and stores "all four" as the empty set, which means every type.
+private fun toggleKind(vm: MainViewModel, chosen: Set<Category>, category: Category) {
+    val next = if (category in chosen) chosen - category else chosen + category
+    if (next.isEmpty()) return
+    val stored = if (next.size == Category.entries.size) emptySet() else next
+    Category.entries.filter { (it in stored) != (it in vm.watchedCategories) }.forEach { vm.toggleWatchedCategory(it) }
 }
 
 private fun copy(context: Context, text: String, message: String) {
@@ -248,7 +256,7 @@ private fun copy(context: Context, text: String, message: String) {
 }
 
 private fun openOnEkap(context: Context, tender: Tender) {
-    copy(context, tender.ikn, "İKN kopyalandı, EKAP'taki arama kutusuna yapıştır")
+    copy(context, tender.ikn, "İhale numarası kopyalandı. EKAP'ta arama kutusuna yapıştırın.")
     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(EKAP_SEARCH)))
 }
 
@@ -267,9 +275,9 @@ private fun share(context: Context, tender: Tender) {
     val text = listOfNotNull(
         tender.title,
         tender.authority,
-        tender.province?.let { "İl: $it" },
+        tender.province?.let { "Şehir: $it" },
         tender.whenText(long = true)?.let { "Tarih: $it" },
-        "İKN: ${tender.ikn}",
+        "İhale kayıt numarası: ${tender.ikn}",
         "İhaleBak ile paylaşıldı",
     ).joinToString("\n")
     val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)

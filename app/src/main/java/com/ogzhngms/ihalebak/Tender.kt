@@ -8,11 +8,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 // The four kinds of public procurement the bulletin publishes, under the ids the collector writes.
-enum class Category(val id: String, val label: String) {
-    GOODS("mal", "Mal alımı"),
-    SERVICES("hizmet", "Hizmet alımı"),
-    WORKS("yapim", "Yapım işi"),
-    CONSULTANCY("danismanlik", "Danışmanlık"),
+enum class Category(val id: String, val label: String, val short: String) {
+    GOODS("mal", "Mal alımı", "Mal"),
+    SERVICES("hizmet", "Hizmet alımı", "Hizmet"),
+    WORKS("yapim", "Yapım işi", "Yapım"),
+    CONSULTANCY("danismanlik", "Danışmanlık", "Danışmanlık"),
     ;
 
     companion object {

@@ -2,10 +2,12 @@ package com.ogzhngms.ihalebak.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 
 // Navy and white for a sober, official look, with amber kept for "soon" and red for cancelled.
 private val Light = lightColorScheme(
@@ -62,7 +64,19 @@ private val Dark = darkColorScheme(
     onErrorContainer = Color(0xFFFADBD8),
 )
 
+// Many users are middle-aged or older, so every text style is about 15% larger than Material's default.
+private val Larger: Typography = Typography().run {
+    fun TextStyle.up() = copy(fontSize = fontSize * 1.15f, lineHeight = lineHeight * 1.15f)
+    copy(
+        displayLarge = displayLarge.up(), displayMedium = displayMedium.up(), displaySmall = displaySmall.up(),
+        headlineLarge = headlineLarge.up(), headlineMedium = headlineMedium.up(), headlineSmall = headlineSmall.up(),
+        titleLarge = titleLarge.up(), titleMedium = titleMedium.up(), titleSmall = titleSmall.up(),
+        bodyLarge = bodyLarge.up(), bodyMedium = bodyMedium.up(), bodySmall = bodySmall.up(),
+        labelLarge = labelLarge.up(), labelMedium = labelMedium.up(), labelSmall = labelSmall.up(),
+    )
+}
+
 @Composable
 fun IhaleBakTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (isSystemInDarkTheme()) Dark else Light, content = content)
+    MaterialTheme(colorScheme = if (isSystemInDarkTheme()) Dark else Light, typography = Larger, content = content)
 }

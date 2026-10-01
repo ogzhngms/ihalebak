@@ -29,7 +29,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var failed by mutableStateOf(false)
         private set
     var query by mutableStateOf("")
-    var categories by mutableStateOf<Set<Category>>(emptySet())
+    // One type at a time, or all of them (null): simpler to follow than several chips switched on together.
+    var category by mutableStateOf<Category?>(null)
     var selected by mutableStateOf<Tender?>(null)
     var favorites by mutableStateOf(settings.favorites)
         private set
@@ -92,9 +93,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         load(refresh = false)
     }
 
-    fun toggleCategory(category: Category) {
-        categories = if (category in categories) categories - category else categories + category
-    }
 
     fun isFavorite(tender: Tender) = favorites.any { it.ikn == tender.ikn }
 

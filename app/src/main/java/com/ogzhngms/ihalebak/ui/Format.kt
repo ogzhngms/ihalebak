@@ -1,29 +1,36 @@
 package com.ogzhngms.ihalebak.ui
 
 import com.ogzhngms.ihalebak.Tender
+import com.ogzhngms.ihalebak.isOver
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val TURKISH = Locale.forLanguageTag("tr")
 private val LONG_DATE = DateTimeFormatter.ofPattern("d MMMM yyyy, EEEE", TURKISH)
-private val SHORT_DATE = DateTimeFormatter.ofPattern("d MMM yyyy", TURKISH)
+private val SHORT_DATE = DateTimeFormatter.ofPattern("d MMMM yyyy", TURKISH)
 private val UPDATED = DateTimeFormatter.ofPattern("d MMMM HH:mm", TURKISH)
 
 fun Tender.whenText(long: Boolean = false): String? {
     val day = date ?: return null
     val text = day.format(if (long) LONG_DATE else SHORT_DATE)
-    return if (time != null) "$text · $time" else text
+    return if (time != null) "$text, saat $time" else text
 }
 
-fun daysLeftText(days: Long?): String? = when {
+// Days left in plain words: "Bugün", "Yarın", "12 gün kaldı".
+fun remainingText(days: Long?): String? = when {
     days == null -> null
     days < 0 -> "Geçti"
     days == 0L -> "Bugün"
     days == 1L -> "Yarın"
-    else -> "$days gün"
+    else -> "$days gün kaldı"
 }
+
+// Same, but a tender whose hour has already gone today reads "Geçti" rather than "Bugün".
+fun Tender.remainingText(now: LocalDateTime = LocalDateTime.now()): String? =
+    if (isOver(now)) "Geçti" else remainingText(daysLeft(now.toLocalDate()))
 
 fun LocalDate.shortText(): String = format(SHORT_DATE)
 

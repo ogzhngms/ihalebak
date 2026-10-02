@@ -78,4 +78,21 @@ class TenderTest {
         assertEquals("DSİ 21. Bölge Müdürlüğü", "DSİ 21. BÖLGE MÜDÜRLÜĞÜ".toTitleCaseTr())
         assertEquals("Konak Belediyesi KGM", "Konak Belediyesi KGM".toTitleCaseTr())
     }
+
+    @Test
+    fun theDistrictIsReadFromTheEndOfTheAddress() {
+        assertEquals("Konak", districtOf("Gaziler Caddesi No:185 Yenişehir 35110 Konak/İzmir", "İzmir"))
+        assertEquals("Merkez", districtOf("Akpınar Cad. No: 1A Merkez / Kilis", "Kilis"))
+        assertEquals("Merkez", districtOf("Selim Sarıkaya Caddesi No:43/A Merkez İlçe/Kırklareli", "Kırklareli"))
+        assertNull(districtOf("Atatürk Bulvarı No:5/Ankara", "Ankara"))
+        assertNull(districtOf("Konak/İzmir", "Manisa"))
+        assertNull(districtOf(null, "İzmir"))
+    }
+
+    @Test
+    fun tendersCanBeNarrowedToSevenDays() {
+        val list = listOf(tender("1", "2026-10-05"), tender("2", "2026-10-20"), tender("3", null))
+        assertEquals(listOf("1"), list.filtered("", emptySet(), today.atTime(8, 0), period = Period.WEEK).map { it.ikn })
+        assertEquals(listOf("1", "2"), list.filtered("", emptySet(), today.atTime(8, 0), period = Period.MONTH).map { it.ikn })
+    }
 }

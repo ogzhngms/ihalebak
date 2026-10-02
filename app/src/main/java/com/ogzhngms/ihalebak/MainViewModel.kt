@@ -33,6 +33,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var query by mutableStateOf("")
     // One type at a time, or all of them (null): simpler to follow than several chips switched on together.
     var category by mutableStateOf<Category?>(null)
+    var district by mutableStateOf<String?>(null)
+    var period by mutableStateOf(Period.ALL)
     var selected by mutableStateOf<Tender?>(null)
     var favorites by mutableStateOf(settings.favorites)
         private set
@@ -100,9 +102,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         settings.province = slug
         tenders = emptyList()
         query = ""
+        district = null
         load(refresh = false)
     }
 
+
+    // How many of the three filters (type, district, date) are switched on.
+    val filterCount: Int get() = listOfNotNull(category, district, period.days).size
+
+    fun clearFilters() {
+        category = null
+        district = null
+        period = Period.ALL
+    }
 
     fun isFavorite(tender: Tender) = favorites.any { it.ikn == tender.ikn }
 

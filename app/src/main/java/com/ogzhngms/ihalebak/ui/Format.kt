@@ -2,6 +2,7 @@ package com.ogzhngms.ihalebak.ui
 
 import com.ogzhngms.ihalebak.Tender
 import com.ogzhngms.ihalebak.isOver
+import java.text.Collator
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
@@ -9,12 +10,15 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val TURKISH = Locale.forLanguageTag("tr")
+
+// Alphabetical the Turkish way: Ç after C, İ after I, Ş after S.
+val TURKISH_ORDER: Comparator<String> = Collator.getInstance(TURKISH).let { c -> Comparator { a, b -> c.compare(a, b) } }
 private val LONG_DATE = DateTimeFormatter.ofPattern("d MMMM yyyy, EEEE", TURKISH)
 private val SHORT_DATE = DateTimeFormatter.ofPattern("d MMMM yyyy", TURKISH)
-private val DAY_MONTH = DateTimeFormatter.ofPattern("d MMMM", TURKISH)
+private val DAY_MONTH = DateTimeFormatter.ofPattern("d MMMM EEEE", TURKISH)
 private val UPDATED = DateTimeFormatter.ofPattern("d MMMM HH:mm", TURKISH)
 
-// "8 Ekim 2026, saat 14:00"; on a card this year's tenders leave the year out so the line stays short.
+// "8 Ekim 2026, saat 14:00"; on a card this year's tenders show the weekday instead of the year: "8 Ekim Perşembe".
 fun Tender.whenText(long: Boolean = false, withYear: Boolean = true): String? {
     val day = date ?: return null
     val text = day.format(if (long) LONG_DATE else if (withYear) SHORT_DATE else DAY_MONTH)

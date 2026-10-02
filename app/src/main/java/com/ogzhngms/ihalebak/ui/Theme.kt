@@ -8,6 +8,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import com.ogzhngms.ihalebak.Category
 
 // Navy and white for a sober, official look, with amber kept for "soon" and red for cancelled.
 private val Light = lightColorScheme(
@@ -74,6 +75,19 @@ private val Larger: Typography = Typography().run {
         bodyLarge = bodyLarge.up(), bodyMedium = bodyMedium.up(), bodySmall = bodySmall.up(),
         labelLarge = labelLarge.up(), labelMedium = labelMedium.up(), labelSmall = labelSmall.up(),
     )
+}
+
+// One colour per tender type, for the dot on each card; lighter in the dark theme.
+@Composable
+fun categoryColor(category: Category?): Color {
+    val dark = isSystemInDarkTheme()
+    return when (category) {
+        Category.GOODS -> if (dark) Color(0xFF7FB0EA) else Color(0xFF2F6FB5)
+        Category.SERVICES -> if (dark) Color(0xFF63C9B4) else Color(0xFF1F8A78)
+        Category.WORKS -> if (dark) Color(0xFFF0A860) else Color(0xFFC7772A)
+        Category.CONSULTANCY -> if (dark) Color(0xFFBBA2E6) else Color(0xFF7A5AA8)
+        null -> MaterialTheme.colorScheme.outline
+    }
 }
 
 @Composable

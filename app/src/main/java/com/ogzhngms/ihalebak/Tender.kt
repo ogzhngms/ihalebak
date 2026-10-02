@@ -42,6 +42,9 @@ data class Tender(
     // Days from today to the tender: 0 is today, negative has passed, null when the bulletin gave no date.
     fun daysLeft(today: LocalDate): Long? = date?.let { ChronoUnit.DAYS.between(today, it) }
 
+    // The institution's district, read from the "District/Province" that ends most addresses.
+    val district: String? by lazy { districtOf(address, province) }
+
     // Title, subject, institution and İKN, folded like the query, for search.
     val searchText: String by lazy { listOfNotNull(title, subject, authority, ikn).joinToString(" ").searchKey() }
 
@@ -92,11 +95,38 @@ fun Tender.isOver(now: LocalDateTime): Boolean {
 }
 
 // Open tenders first, soonest first; cancelled ones at the end; tenders that are over are left out.
-fun List<Tender>.filtered(query: String, categories: Set<Category>, now: LocalDateTime): List<Tender> {
+fun List<Tender>.filtered(
+    query: String,
+    categories: Set<Category>,
+    now: LocalDateTime,
+    district: String? = null,
+    period: Period = Period.ALL,
+): List<Tender> {
     val needle = query.trim().searchKey()
+    val today = now.toLocalDate()
     return filter { (categories.isEmpty() || it.category in categories) && (needle.isEmpty() || needle in it.searchText) }
+        .filter { district == null || it.district == district }
+        .filter { period.days == null || (it.daysLeft(today) ?: Long.MAX_VALUE) <= period.days }
         .filterNot { it.isOver(now) }
         .sortedWith(compareBy<Tender> { it.cancelled }.thenBy { it.dateTime ?: LocalDateTime.MAX })
+}
+
+// How soon the tender is, for the date filter.
+enum class Period(val label: String, val days: Long?) {
+    ALL("Tümü", null),
+    WEEK("7 gün içinde", 7),
+    MONTH("30 gün içinde", 30),
+}
+
+private val DISTRICT = Regex("""([^\s/,]+)(?:\s+ilçe(?:si)?)?\s*/\s*([^\s/]+)\s*$""")
+
+// "... 35110 Konak/İzmir" gives "Konak". Nothing when the address does not end with its own province, or when
+// what stands before the slash is a door number ("No:5/Ankara").
+fun districtOf(address: String?, province: String?): String? {
+    if (address == null || province == null) return null
+    val (name, place) = DISTRICT.find(address.lowercaseTr())?.destructured ?: return null
+    if (place != province.lowercaseTr() || name == place || name.any { it.isDigit() || it == ':' || it == '.' }) return null
+    return name.replaceFirstChar { it.titlecase(TURKISH) }
 }
 
 private fun JSONObject.optStringOrNull(name: String): String? = if (has(name) && !isNull(name)) optString(name).ifBlank { null } else null

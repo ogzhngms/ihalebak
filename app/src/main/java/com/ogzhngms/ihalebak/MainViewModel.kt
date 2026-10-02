@@ -119,6 +119,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun provinceName(slug: String?): String? = index?.provinces?.firstOrNull { it.slug == slug }?.name
 
+    // Whether the given choice is every province there is.
+    fun isEveryProvince(slugs: List<String>): Boolean = index?.provinces?.size?.let { it > 0 && slugs.size == it } ?: false
+
     fun toggleSearch() {
         searching = !searching
         query = ""
@@ -170,6 +173,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleDraftCity(slug: String) {
         draftCities = if (slug in draftCities) draftCities - slug else draftCities + slug
+    }
+
+    // "Tümünü seç": every province, or none again when they are all chosen already.
+    fun toggleAllDraftCities() {
+        val all = index?.provinces.orEmpty().map { it.slug }
+        draftCities = if (draftCities.size == all.size) emptyList() else all
     }
 
     // At least one type stays chosen, and all four are kept as the empty set, which means every type.

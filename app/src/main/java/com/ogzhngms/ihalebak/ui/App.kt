@@ -55,6 +55,10 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 private const val STRIP_DAYS = 14
+// Past this many chosen provinces their names are counted, not listed.
+private const val MANY_CITIES = 4
+// Past this many, a chip for each would be a row nobody scrolls through.
+private const val MOST_CHIPS = 12
 
 // No province list and no tabs along the bottom: two questions on the first run, then one agenda. A tender opens
 // as a sheet over the list, so the list is never left.
@@ -130,6 +134,12 @@ private fun Agenda(vm: MainViewModel) {
     val list = remember(base, vm.day) { if (vm.day == null) base else base.filter { it.date == vm.day } }
     val groups = remember(list) { list.byDay() }
     val cities = filterName?.let(::listOf) ?: vm.cities.mapNotNull(vm::provinceName)
+    // A long list of names would fill the screen: every province is "Tüm şehirler", many are counted.
+    val where = when {
+        filterName == null && vm.isEveryProvince(vm.cities) -> "Tüm şehirler"
+        cities.size > MANY_CITIES -> "${cities.size} şehir"
+        else -> listJoin(cities)
+    }
     val day = vm.day
     val waiting = vm.tenders.isEmpty() && vm.loading
     val failed = vm.tenders.isEmpty() && vm.failed
@@ -141,7 +151,7 @@ private fun Agenda(vm: MainViewModel) {
         else -> "${base.count { !it.cancelled }} açık ihale"
     }
     val types = if (vm.categories.isEmpty()) "tüm işler" else Category.entries.filter { it in vm.categories }.joinToString(", ") { it.label }
-    val subline = if (day != null) "${dayTitle(day, today)}, ${dayMonth(day, today)} · ${listJoin(cities)}" else "${listJoin(cities)} · $types"
+    val subline = if (day != null) "${dayTitle(day, today)}, ${dayMonth(day, today)} · $where" else "$where · $types"
 
     PullToRefreshBox(isRefreshing = vm.loading && vm.tenders.isNotEmpty(), onRefresh = { vm.load(refresh = true) }, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
@@ -187,8 +197,10 @@ private fun CityChips(vm: MainViewModel) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Chip("Hepsi", vm.cityFilter == null) { vm.cityFilter = null }
-        vm.cities.forEach { slug ->
-            Chip(vm.provinceName(slug) ?: slug, vm.cityFilter == slug) { vm.cityFilter = if (vm.cityFilter == slug) null else slug }
+        if (vm.cities.size <= MOST_CHIPS) {
+            vm.cities.forEach { slug ->
+                Chip(vm.provinceName(slug) ?: slug, vm.cityFilter == slug) { vm.cityFilter = if (vm.cityFilter == slug) null else slug }
+            }
         }
         Surface(onClick = vm::openSetup, shape = CircleShape, color = Color.Transparent, contentColor = palette.accentText, border = BorderStroke(1.dp, palette.line)) {
             Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ic_plus), "Şehir ekle", Modifier.size(20.dp)) }

@@ -84,6 +84,7 @@ fun SetupScreen(vm: MainViewModel) {
                 when {
                     second -> "Ajandamı göster"
                     vm.draftCities.isEmpty() -> "Devam"
+                    vm.isEveryProvince(vm.draftCities) -> "Devam (tüm şehirler)"
                     else -> "Devam (${vm.draftCities.size} şehir)"
                 },
                 onClick = {
@@ -111,6 +112,7 @@ private fun CityStep(vm: MainViewModel) {
     val provinces = remember(index, needle) {
         index.provinces.filter { needle.isEmpty() || needle in it.name.searchKey() }.sortedWith(compareBy(TURKISH_ORDER) { it.name })
     }
+    val everything = vm.isEveryProvince(vm.draftCities)
     // The question and the chosen provinces scroll away with the list; the search box stays in reach.
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp)) {
         item {
@@ -118,14 +120,9 @@ private fun CityStep(vm: MainViewModel) {
                 Text("Hangi şehirlerdeki ihaleleri görmek istersin?", style = heading(32))
                 if (vm.draftCities.isNotEmpty()) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        vm.draftCities.forEach { slug ->
-                            Surface(onClick = { vm.toggleDraftCity(slug) }, shape = Sharp, color = palette.accent, contentColor = palette.onAccent) {
-                                Row(Modifier.heightIn(min = 40.dp).padding(start = 14.dp, end = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(vm.provinceName(slug) ?: slug, style = type(16))
-                                    Icon(painterResource(R.drawable.ic_close), "Çıkar", Modifier.size(15.dp))
-                                }
-                            }
-                        }
+                        // Eighty-one chips would bury the list, so every province together is one chip.
+                        if (everything) Chosen("Tüm şehirler", vm::toggleAllDraftCities)
+                        else vm.draftCities.forEach { slug -> Chosen(vm.provinceName(slug) ?: slug) { vm.toggleDraftCity(slug) } }
                     }
                 }
             }
@@ -134,21 +131,43 @@ private fun CityStep(vm: MainViewModel) {
             Box(Modifier.background(palette.bg).padding(start = 20.dp, end = 20.dp, bottom = 12.dp)) { SearchInput(query, { query = it }, "Şehir ara") }
         }
         if (provinces.isEmpty()) item { Text("“${query.trim()}” adında bir şehir bulunamadı.", Modifier.padding(20.dp), style = type(17), color = palette.muted) }
-        items(provinces, key = { it.slug }) { province ->
-            val on = province.slug in vm.draftCities
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 12.dp).clip(Sharp).clickable { vm.toggleDraftCity(province.slug) }.heightIn(min = 54.dp).padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    Modifier.size(26.dp).then(if (on) Modifier.background(palette.accent, Sharp) else Modifier.border(1.5.dp, palette.faint, Sharp)),
-                    contentAlignment = Alignment.Center,
-                ) { if (on) Icon(painterResource(R.drawable.ic_check), null, Modifier.size(17.dp), tint = palette.onAccent) }
-                Text(province.name, style = type(19), modifier = Modifier.weight(1f))
-                Text(if (province.open == 0) "yok" else "${province.open} ihale", style = type(15).copy(fontFeatureSettings = "tnum"), color = palette.muted)
+        // "Tümünü seç" heads the whole list; while searching it would be unclear what "all" means, so it steps aside.
+        if (needle.isEmpty()) {
+            item(key = "all") {
+                CityRow("Tümünü seç", "${index.provinces.sumOf { it.open }} ihale", everything, FontWeight.SemiBold, vm::toggleAllDraftCities)
+                HorizontalDivider(Modifier.padding(horizontal = 20.dp, vertical = 4.dp), color = palette.line)
             }
         }
+        items(provinces, key = { it.slug }) { province ->
+            CityRow(province.name, if (province.open == 0) "yok" else "${province.open} ihale", province.slug in vm.draftCities, FontWeight.Normal) { vm.toggleDraftCity(province.slug) }
+        }
+    }
+}
+
+// A chosen province above the list; touching it takes it out again.
+@Composable
+private fun Chosen(name: String, onRemove: () -> Unit) {
+    Surface(onClick = onRemove, shape = Sharp, color = palette.accent, contentColor = palette.onAccent) {
+        Row(Modifier.heightIn(min = 40.dp).padding(start = 14.dp, end = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(name, style = type(16))
+            Icon(painterResource(R.drawable.ic_close), "Çıkar", Modifier.size(15.dp))
+        }
+    }
+}
+
+@Composable
+private fun CityRow(name: String, count: String, on: Boolean, weight: FontWeight, onToggle: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp).clip(Sharp).clickable(onClick = onToggle).heightIn(min = 54.dp).padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(26.dp).then(if (on) Modifier.background(palette.accent, Sharp) else Modifier.border(1.5.dp, palette.faint, Sharp)),
+            contentAlignment = Alignment.Center,
+        ) { if (on) Icon(painterResource(R.drawable.ic_check), null, Modifier.size(17.dp), tint = palette.onAccent) }
+        Text(name, style = type(19, weight), modifier = Modifier.weight(1f))
+        Text(count, style = type(15).copy(fontFeatureSettings = "tnum"), color = palette.muted)
     }
 }
 

@@ -36,6 +36,7 @@ class WatchWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val repository = Repository(applicationContext)
         val names = runCatching { repository.index(refresh = true).value.provinces.associate { it.slug to it.name } }.getOrDefault(emptyMap())
         var failed = false
+        val news = mutableListOf<News>()
         for (slug in settings.watchedProvinces) {
             val tenders = try {
                 repository.province(slug, refresh = true).value
@@ -45,8 +46,11 @@ class WatchWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             }
             val fresh = newTenders(tenders, settings.seen(slug), settings.categories)
             settings.markSeen(slug, tenders.map { it.ikn }.toSet())
-            if (fresh.isNotEmpty()) notify(applicationContext, slug, names[slug] ?: slug, fresh)
+            if (fresh.isNotEmpty()) news += News(slug, names[slug] ?: slug, fresh)
         }
+        // A notification per province is right for a few; with many provinces chosen it would be a flood.
+        if (news.size <= SEPARATE_NOTIFICATIONS) news.forEach { notify(applicationContext, it.slug, it.province, it.tenders) }
+        else notifySummary(applicationContext, news)
         return if (failed) Result.retry() else Result.success()
     }
 
@@ -69,6 +73,11 @@ class WatchWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
 }
 
 private const val CHANNEL = "new_tenders"
+private const val SEPARATE_NOTIFICATIONS = 3
+private const val SUMMARY_ID = 1
+
+// The new tenders found in one province.
+private class News(val slug: String, val province: String, val tenders: List<Tender>)
 
 fun createNotificationChannel(context: Context) {
     val channel = NotificationChannel(CHANNEL, "Yeni ihaleler", NotificationManager.IMPORTANCE_DEFAULT).apply {
@@ -81,13 +90,24 @@ fun canNotify(context: Context): Boolean =
     Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
+// "İzmir: 3 yeni ihale", opening the agenda on that province.
 private fun notify(context: Context, slug: String, province: String, tenders: List<Tender>) {
-    if (!canNotify(context)) return
     val open = Intent(context, MainActivity::class.java).putExtra(MainActivity.EXTRA_PROVINCE, slug)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-    val pending = PendingIntent.getActivity(context, slug.hashCode(), open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     val title = if (tenders.size == 1) "$province: yeni ihale" else "$province: ${tenders.size} yeni ihale"
-    val lines = tenders.take(5).map { it.title }
+    post(context, slug.hashCode(), open, title, tenders.take(5).map { it.title })
+}
+
+// "12 şehirde 85 yeni ihale", with a line per province, opening the whole agenda.
+private fun notifySummary(context: Context, news: List<News>) {
+    val open = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+    val busiest = news.sortedByDescending { it.tenders.size }
+    post(context, SUMMARY_ID, open, "${news.size} şehirde ${news.sumOf { it.tenders.size }} yeni ihale", busiest.take(5).map { "${it.province}: ${it.tenders.size} yeni ihale" })
+}
+
+private fun post(context: Context, id: Int, open: Intent, title: String, lines: List<String>) {
+    if (!canNotify(context)) return
+    val pending = PendingIntent.getActivity(context, id, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     val notification = NotificationCompat.Builder(context, CHANNEL)
         .setSmallIcon(R.drawable.ic_notification)
         .setContentTitle(title)
@@ -97,7 +117,7 @@ private fun notify(context: Context, slug: String, province: String, tenders: Li
         .setAutoCancel(true)
         .build()
     try {
-        NotificationManagerCompat.from(context).notify(slug.hashCode(), notification)
+        NotificationManagerCompat.from(context).notify(id, notification)
     } catch (e: SecurityException) {
         // The permission was revoked between the check and the post; nothing to do.
     }

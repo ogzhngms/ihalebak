@@ -33,12 +33,8 @@ class MainActivity : ComponentActivity() {
         openFromNotification(intent)
     }
 
-    // A new-tender notification opens its province's list.
     private fun openFromNotification(intent: Intent?) {
-        val slug = intent?.getStringExtra(EXTRA_PROVINCE) ?: return
-        viewModel.tab = Tab.TENDERS
-        viewModel.selected = null
-        if (slug != viewModel.province) viewModel.choose(slug)
+        intent?.getStringExtra(EXTRA_PROVINCE)?.let(viewModel::showCity)
     }
 
     companion object {

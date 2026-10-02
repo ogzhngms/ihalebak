@@ -9,14 +9,20 @@ GitHub Pages twice a day, and the **Android app** (Kotlin, Jetpack Compose, `app
 
 ## The app
 
-- **Browse:** pick one of the 81 provinces (each shows its number of open tenders), filter by type, search titles,
-  institutions and İKN. Tenders whose hour has passed drop off; cancelled ones are marked.
-- **Details:** institution, address, subject, quantity, date and days left. Copy the İKN and open EKAP's search,
-  add the tender to the calendar, or share it.
+- **First run:** two questions: which provinces (several can be picked), then which kinds of work, and whether to
+  announce new tenders. The settings button asks them again.
+- **Agenda:** the chosen provinces' tenders in day and hour order under a headline that counts them, with a chip per
+  province and a two-week strip of days to narrow the list. Search covers titles, institutions and İKN. Tenders
+  whose hour has passed drop off; cancelled ones are marked.
+- **A tender** opens as a sheet over the agenda: date, institution, subject, quantity, address and İKN. From there:
+  open EKAP's search (the İKN is shown as the year and number it asks for), favourite, add to the calendar, share.
 - **Favourites:** saved on the device, whole, so they stay after the tender leaves the published data.
-- **Notifications:** pick provinces and types to watch. WorkManager reads the published files every few hours and
-  posts "İzmir: 3 yeni ihale" for tenders it has not seen. No server, account or Firebase is involved.
+- **Notifications:** WorkManager reads the chosen provinces' files every few hours and posts "İzmir: 3 yeni ihale"
+  for tenders it has not seen. No server, account or Firebase is involved.
 - **Offline:** the last copy of each file is kept, so the app opens without a connection.
+
+The design is in the "Ajanda" handoff: Inter type, warm grey paper, cyan for what can be pressed, magenta for
+what is urgent. The font file itself is not in the project yet; the system's sans-serif stands in.
 
 ```bash
 ./gradlew testDebugUnitTest installDebug

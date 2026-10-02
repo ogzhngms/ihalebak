@@ -4,13 +4,27 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
-// What the user picked, kept on the device: the province being browsed, saved tenders, and what to watch.
+// What the user picked, kept on the device: the provinces and types in the agenda, saved tenders, and whether to
+// announce new tenders.
 class Settings(context: Context) {
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
-    var province: String?
-        get() = prefs.getString("province", null)
-        set(value) = prefs.edit().putString("province", value).apply()
+    // Provinces by slug, in the order they were picked. Empty until the first-run questions are answered.
+    var cities: List<String>
+        get() = JSONArray(prefs.getString("cities", "[]")).let { array -> List(array.length()) { array.getString(it) } }
+        set(value) = prefs.edit().putString("cities", JSONArray(value).toString()).apply()
+
+    // The tender types of interest; empty means all of them.
+    var categories: Set<Category>
+        get() = prefs.getStringSet("categories", emptySet())!!.mapNotNull(Category::of).toSet()
+        set(value) = prefs.edit().putStringSet("categories", value.map { it.id }.toSet()).apply()
+
+    var notify: Boolean
+        get() = prefs.getBoolean("notify", true)
+        set(value) = prefs.edit().putBoolean("notify", value).apply()
+
+    // The provinces checked in the background: the agenda's own, while notifications are on.
+    val watchedProvinces: List<String> get() = if (notify) cities else emptyList()
 
     // Saved tenders are stored whole, so the list still shows them after they leave the published data.
     var favorites: List<Tender>
@@ -19,15 +33,6 @@ class Settings(context: Context) {
             return List(array.length()) { Tender.parse(JSONObject(array.getString(it))) }
         }
         set(value) = prefs.edit().putString("favorites", JSONArray(value.map { it.json }).toString()).apply()
-
-    // Provinces (by slug) and categories to be notified about; an empty category set means all of them.
-    var watchedProvinces: Set<String>
-        get() = prefs.getStringSet("watched_provinces", emptySet())!!.toSet()
-        set(value) = prefs.edit().putStringSet("watched_provinces", value).apply()
-
-    var watchedCategories: Set<Category>
-        get() = prefs.getStringSet("watched_categories", emptySet())!!.mapNotNull(Category::of).toSet()
-        set(value) = prefs.edit().putStringSet("watched_categories", value.map { it.id }.toSet()).apply()
 
     // The tenders already seen in each watched province, so only new ones are announced.
     fun seen(slug: String): Set<String>? = prefs.getStringSet("seen_$slug", null)?.toSet()

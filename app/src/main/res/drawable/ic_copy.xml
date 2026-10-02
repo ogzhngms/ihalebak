@@ -1,3 +1,4 @@
+<!-- Drawn for this app in the duotone style of the design: an outline with a pale fill. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -5,5 +6,18 @@
     android:viewportHeight="24">
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M16,1H4c-1.1,0 -2,0.9 -2,2v14h2V3h12V1zM19,5H8c-1.1,0 -2,0.9 -2,2v14c0,1.1 0.9,2 2,2h11c1.1,0 2,-0.9 2,-2V7c0,-1.1 -0.9,-2 -2,-2zM19,21H8V7h11v14z" />
+        android:fillAlpha="0.2"
+        android:pathData="M9,8H19A1,1 0 0,1 20,9V19A1,1 0 0,1 19,20H9A1,1 0 0,1 8,19V9A1,1 0 0,1 9,8Z" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M9,8H19A1,1 0 0,1 20,9V19A1,1 0 0,1 19,20H9A1,1 0 0,1 8,19V9A1,1 0 0,1 9,8Z" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M16,8V5A1,1 0 0,0 15,4H5A1,1 0 0,0 4,5V15A1,1 0 0,0 5,16H8" />
 </vector>

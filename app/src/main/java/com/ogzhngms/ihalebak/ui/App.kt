@@ -1,11 +1,12 @@
-@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.ogzhngms.ihalebak.ui
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,380 +15,256 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import com.ogzhngms.ihalebak.Category
 import com.ogzhngms.ihalebak.MainViewModel
-import com.ogzhngms.ihalebak.Period
 import com.ogzhngms.ihalebak.R
-import com.ogzhngms.ihalebak.Tab
 import com.ogzhngms.ihalebak.Tender
+import com.ogzhngms.ihalebak.View
+import com.ogzhngms.ihalebak.byDay
 import com.ogzhngms.ihalebak.filtered
-import com.ogzhngms.ihalebak.searchKey
 import java.time.LocalDate
 import java.time.LocalDateTime
 
+private const val STRIP_DAYS = 14
+
+// No province list and no tabs along the bottom: two questions on the first run, then one agenda. A tender opens
+// as a sheet over the list, so the list is never left.
 @Composable
 fun App(vm: MainViewModel) {
-    val selected = vm.selected
-    BackHandler(enabled = selected != null) { vm.selected = null }
-    if (selected != null) {
-        DetailScreen(vm, selected, onBack = { vm.selected = null })
-        return
+    Surface(Modifier.fillMaxSize(), color = palette.bg, contentColor = palette.text) {
+        if (vm.setupStep > 0) SetupScreen(vm) else MainScreen(vm)
     }
-    var picking by rememberSaveable { mutableStateOf(false) }
-    var filtering by rememberSaveable { mutableStateOf(false) }
-    BackHandler(enabled = filtering) { filtering = false }
-    if (filtering) {
-        FilterScreen(vm, onBack = { filtering = false }, onChangeProvince = { filtering = false; picking = true })
-        return
-    }
-    BackHandler(enabled = picking) { picking = false }
-    BackHandler(enabled = !picking && vm.tab != Tab.TENDERS) { vm.tab = Tab.TENDERS }
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("İhaleBak", fontWeight = FontWeight.Bold) },
-                // Navy in the light theme; in the dark theme a navy bar would be the pale "primary", so stay dark there.
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.primary,
-                    titleContentColor = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimary,
-                ),
-            )
-        },
-        bottomBar = {
-            NavigationBar {
-                NavigationBarItem(vm.tab == Tab.TENDERS, { vm.tab = Tab.TENDERS }, { Icon(painterResource(R.drawable.ic_list), null) }, label = { NavLabel("İhaleler") })
-                NavigationBarItem(vm.tab == Tab.FAVORITES, { vm.tab = Tab.FAVORITES }, { Icon(painterResource(R.drawable.ic_star), null) }, label = { NavLabel("Kayıtlı") })
-                NavigationBarItem(vm.tab == Tab.WATCH, { vm.tab = Tab.WATCH }, { Icon(painterResource(R.drawable.ic_bell), null) }, label = { NavLabel("Bildirimler") })
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.background,
-    ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
-            when (vm.tab) {
-                Tab.TENDERS ->
-                    if (vm.province == null || picking) {
-                        ProvincePicker(
-                            vm,
-                            title = "Hangi şehrin ihalelerine bakalım?",
-                            onPick = { vm.choose(it); picking = false },
-                            onCancel = if (vm.province != null) ({ picking = false }) else null,
-                        )
-                    } else {
-                        TendersScreen(vm, onChangeProvince = { picking = true }, onFilter = { filtering = true })
-                    }
-                Tab.FAVORITES -> FavoritesScreen(vm)
-                Tab.WATCH -> WatchScreen(vm)
-            }
-        }
-    }
+    vm.selected?.let { DetailSheet(vm, it) }
 }
 
 @Composable
-private fun NavLabel(text: String) = Text(text, maxLines = 1, softWrap = false)
-
-// The 81 provinces in alphabetical order, as on any official form, each a large row with its number of open tenders.
-@Composable
-fun ProvincePicker(vm: MainViewModel, title: String, onPick: (String) -> Unit, onCancel: (() -> Unit)?) {
-    var query by rememberSaveable { mutableStateOf("") }
-    val index = vm.index
-    Column(Modifier.fillMaxSize()) {
-        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                if (onCancel != null) TextButton(onClick = onCancel) { Text("Vazgeç") }
-            }
-            SearchField(query, { query = it }, "Şehir ara")
-        }
+private fun MainScreen(vm: MainViewModel) {
+    BackHandler(enabled = vm.searching || vm.day != null || vm.view == View.SAVED) {
         when {
-            index == null && vm.loading -> Loading()
-            index == null -> Problem("Şehir listesi yüklenemedi. İnternet bağlantını kontrol et.") { vm.load(refresh = true) }
-            else -> {
-                val needle = query.trim().searchKey()
-                val provinces = remember(index, needle) {
-                    index.provinces.filter { needle.isEmpty() || needle in it.name.searchKey() }.sortedWith(compareBy(TURKISH_ORDER) { it.name })
-                }
-                if (provinces.isEmpty()) Empty("\"$query\" adında bir şehir bulunamadı.")
-                LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
-                    items(provinces, key = { it.slug }) { province ->
-                        Row(
-                            Modifier.fillMaxWidth().heightIn(min = 60.dp).clickable { onPick(province.slug) }.padding(horizontal = 20.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(province.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                            Text(
-                                if (province.open == 0) "İhale yok" else "${province.open} ihale",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                    }
-                }
-            }
+            vm.searching -> vm.toggleSearch()
+            vm.day != null -> vm.day = null
+            else -> vm.view = View.AGENDA
         }
     }
-}
-
-@Composable
-private fun TendersScreen(vm: MainViewModel, onChangeProvince: () -> Unit, onFilter: () -> Unit) {
-    val today = LocalDate.now()
-    val all = remember(vm.tenders) { vm.tenders.filtered("", emptySet(), LocalDateTime.now()) }
-    val shown = remember(vm.tenders, vm.query, vm.category, vm.district, vm.period) {
-        vm.tenders.filtered(vm.query, setOfNotNull(vm.category), LocalDateTime.now(), vm.district, vm.period)
-    }
-    val narrowed = vm.query.isNotBlank() || vm.filterCount > 0
-    PullToRefreshBox(isRefreshing = vm.loading && vm.tenders.isNotEmpty(), onRefresh = { vm.load(refresh = true) }, modifier = Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { ListHeader(vm, open = all.count { !it.cancelled }, onChangeProvince, onFilter) }
-            when {
-                vm.tenders.isEmpty() && vm.loading -> item { Loading() }
-                vm.tenders.isEmpty() && vm.failed -> item { Problem("İhaleler yüklenemedi. İnternet bağlantını kontrol et.") { vm.load(refresh = true) } }
-                shown.isEmpty() && !narrowed -> item { Empty("Bu şehirde şu an açık ihale görünmüyor.") }
-                shown.isEmpty() -> item {
-                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Empty("Aradığına uyan ihale yok.")
-                        OutlinedButton(onClick = { vm.query = ""; vm.clearFilters() }, modifier = Modifier.heightIn(min = 52.dp)) { Text("Aramayı ve filtreleri temizle") }
-                    }
-                }
-                else -> {
-                    if (narrowed) item { Text("${shown.size} ihale bulundu", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
-                    items(shown, key = { it.ikn }) { tender -> TenderCard(tender, today) { vm.selected = tender } }
-                }
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+        Column(Modifier.padding(start = 20.dp, end = 12.dp, top = 4.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("İhaleBak", style = type(26, FontWeight.Bold, 1.2f).copy(letterSpacing = (-0.025).em), modifier = Modifier.weight(1f))
+                IconTap(R.drawable.ic_search, "Ara", vm::toggleSearch, if (vm.searching) palette.accentText else palette.text)
+                IconTap(R.drawable.ic_sliders, "Şehir ve iş türü seçimi", vm::openSetup)
             }
-            item { Disclaimer(Modifier.padding(top = 8.dp)) }
-        }
-    }
-}
-
-// Where (tap the province to change it) with "Filtrele" beside it, how many, search, and the filters that are on.
-@Composable
-private fun ListHeader(vm: MainViewModel, open: Int, onChangeProvince: () -> Unit, onFilter: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            // "Filtrele" drops below the province when both do not fit, as with a long name at a large font size.
-            FlowRow(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                itemVerticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClickLabel = "Şehir değiştir", onClick = onChangeProvince).heightIn(min = 52.dp).padding(end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(painterResource(R.drawable.ic_place), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(vm.provinceName(vm.province) ?: "", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                    Icon(painterResource(R.drawable.ic_expand), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
-                }
-                FilledTonalButton(onClick = onFilter, modifier = Modifier.heightIn(min = 52.dp)) {
-                    Icon(painterResource(R.drawable.ic_filter), null, Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(if (vm.filterCount == 0) "Filtrele" else "Filtrele (${vm.filterCount})", style = MaterialTheme.typography.titleSmall)
-                }
-            }
-            val counted = if (vm.tenders.isEmpty()) null else if (open == 0) "Açık ihale yok" else "$open açık ihale"
-            val updated = vm.index?.updatedAt?.let { "Güncelleme: ${updatedText(it)}" }
-            Text(listOfNotNull(counted, updated).joinToString("  ·  "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        SearchField(vm.query, { vm.query = it }, "İhale veya kurum ara")
-        if (vm.filterCount > 0) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                vm.district?.let { ActiveFilter(it) { vm.district = null } }
-                vm.category?.let { ActiveFilter(it.label) { vm.category = null } }
-                if (vm.period.days != null) ActiveFilter(vm.period.label) { vm.period = Period.ALL }
-            }
-        }
-        if (vm.offline && !vm.failed) {
-            Text("İnternet yok, son indirilen bilgiler gösteriliyor.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.tertiary)
-        }
-    }
-}
-
-// A filter that is on, with a cross to switch it off without opening the filter screen.
-@Composable
-private fun ActiveFilter(text: String, onRemove: () -> Unit) {
-    Surface(onClick = onRemove, color = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary, shape = RoundedCornerShape(50)) {
-        Row(Modifier.heightIn(min = 40.dp).padding(start = 14.dp, end = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(text, style = MaterialTheme.typography.labelLarge)
-            Spacer(Modifier.width(6.dp))
-            Icon(painterResource(R.drawable.ic_close), "Kaldır", Modifier.size(18.dp))
-        }
-    }
-}
-
-// A tender card reads top to bottom in a fixed order: type and days left, what, who and where, then when.
-@Composable
-fun TenderCard(tender: Tender, today: LocalDate, onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().alpha(if (tender.cancelled) 0.65f else 1f),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        shape = RoundedCornerShape(14.dp),
-    ) {
-        Column(Modifier.padding(top = 14.dp)) {
-            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                FlowRow(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    itemVerticalAlignment = Alignment.CenterVertically,
-                ) {
-                    CategoryLabel(tender.category)
-                    if (tender.cancelled) Tag("İptal edildi", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
-                    else tender.remainingText()?.let { text ->
-                        val over = text == "Geçti"
-                        val soon = !over && (tender.daysLeft(today) ?: 99) <= 3
-                        Tag(
-                            text,
-                            when { over -> MaterialTheme.colorScheme.surfaceVariant; soon -> MaterialTheme.colorScheme.tertiaryContainer; else -> MaterialTheme.colorScheme.primaryContainer },
-                            when { over -> MaterialTheme.colorScheme.onSurfaceVariant; soon -> MaterialTheme.colorScheme.onTertiaryContainer; else -> MaterialTheme.colorScheme.onPrimaryContainer },
-                        )
-                    }
-                }
-                Text(tender.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    tender.authority?.let { InfoLine(R.drawable.ic_business, it, maxLines = 2) }
-                    listOfNotNull(tender.district, tender.province).joinToString(", ").ifEmpty { null }?.let { InfoLine(R.drawable.ic_place, it, maxLines = 1) }
-                }
-            }
-            Spacer(Modifier.size(12.dp))
-            // The date sits in its own band along the bottom, so every card ends the same way.
             Row(
-                Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                Modifier.fillMaxWidth().padding(end = 8.dp).clip(RoundedCornerShape(10.dp)).background(palette.well).padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                Icon(painterResource(R.drawable.ic_event), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    tender.whenText(withYear = tender.date?.year != today.year) ?: "Tarih belirtilmemiş",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(painterResource(R.drawable.ic_chevron), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Segment(R.drawable.ic_calendar, "Ajanda", vm.view == View.AGENDA, Modifier.weight(1f)) { vm.view = View.AGENDA }
+                Segment(R.drawable.ic_star, "Favoriler (${vm.favorites.size})", vm.view == View.SAVED, Modifier.weight(1f)) { vm.view = View.SAVED }
+            }
+        }
+        if (vm.searching) {
+            SearchInput(vm.query, { vm.query = it }, "İş, kurum veya İKN ara", Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 4.dp), focus = true)
+        }
+        when (vm.view) {
+            View.AGENDA -> Agenda(vm)
+            View.SAVED -> Saved(vm)
+        }
+    }
+}
+
+@Composable
+private fun Segment(icon: Int, label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = if (selected) palette.bg else Color.Transparent,
+        contentColor = if (selected) palette.text else palette.muted,
+        shadowElevation = if (selected) 1.dp else 0.dp,
+    ) {
+        Row(Modifier.heightIn(min = 42.dp).padding(horizontal = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            Icon(painterResource(icon), null, Modifier.size(19.dp))
+            Spacer(Modifier.width(7.dp))
+            Text(label, style = type(16, FontWeight.SemiBold), maxLines = 1)
+        }
+    }
+}
+
+// The chosen provinces' tenders in day and hour order, under a headline that counts them, a row of province
+// chips and a two-week strip of days.
+@Composable
+private fun Agenda(vm: MainViewModel) {
+    val today = LocalDate.now()
+    val filterName = vm.provinceName(vm.cityFilter)
+    val base = remember(vm.tenders, vm.query, vm.categories, filterName) {
+        vm.tenders.filtered(vm.query, vm.categories, LocalDateTime.now()).filter { filterName == null || it.province == filterName }
+    }
+    val list = remember(base, vm.day) { if (vm.day == null) base else base.filter { it.date == vm.day } }
+    val groups = remember(list) { list.byDay() }
+    val cities = filterName?.let(::listOf) ?: vm.cities.mapNotNull(vm::provinceName)
+    val day = vm.day
+    val waiting = vm.tenders.isEmpty() && vm.loading
+    val failed = vm.tenders.isEmpty() && vm.failed
+
+    val headline = when {
+        waiting -> "Yükleniyor"
+        day != null -> "${list.size} ihale"
+        vm.query.isNotBlank() -> "${list.size} sonuç"
+        else -> "${base.count { !it.cancelled }} açık ihale"
+    }
+    val types = if (vm.categories.isEmpty()) "tüm işler" else Category.entries.filter { it in vm.categories }.joinToString(", ") { it.label }
+    val subline = if (day != null) "${dayTitle(day, today)}, ${dayMonth(day, today)} · ${listJoin(cities)}" else "${listJoin(cities)} · $types"
+
+    PullToRefreshBox(isRefreshing = vm.loading && vm.tenders.isNotEmpty(), onRefresh = { vm.load(refresh = true) }, modifier = Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
+            item { Headline(headline, subline) }
+            item { CityChips(vm) }
+            item { DayStrip(today, vm.day, base) { vm.day = if (vm.day == it) null else it } }
+            if (day != null) item { GhostButton("Tüm günleri göster", { vm.day = null }, Modifier.padding(start = 14.dp, top = 4.dp), R.drawable.ic_close) }
+            if (vm.offline && !failed) {
+                item { Text("İnternet yok, son indirilen bilgiler gösteriliyor.", Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp), style = type(15), color = palette.urgent) }
+            }
+            when {
+                waiting -> item { Loading() }
+                failed -> item { Note(R.drawable.ic_calendar_x, "İhaleler yüklenemedi. İnternet bağlantını kontrol et.", "Tekrar dene") { vm.load(refresh = true) } }
+                list.isEmpty() -> item {
+                    val text = when {
+                        day != null -> "${dayTitle(day, today)} için ihale yok."
+                        vm.query.isNotBlank() -> "“${vm.query.trim()}” ile eşleşen ihale yok."
+                        else -> "Seçtiğin şehirlerde şu an açık ihale yok."
+                    }
+                    Note(R.drawable.ic_calendar_x, text, "Her şeyi göster", vm::showEverything)
+                }
+                else -> days(vm, groups, today, showCity = cities.size > 1)
+            }
+            item { Disclaimer(vm.index?.updatedAt?.let { updatedText(it, today) }, Modifier.padding(start = 20.dp, end = 20.dp, top = 32.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun Headline(title: String, sub: String) {
+    Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, style = heading(40, 1.05f).copy(letterSpacing = (-0.025).em))
+        Text(sub, style = type(17), color = palette.muted)
+    }
+}
+
+// "Hepsi", then each chosen province, then "+" to choose more.
+@Composable
+private fun CityChips(vm: MainViewModel) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Chip("Hepsi", vm.cityFilter == null) { vm.cityFilter = null }
+        vm.cities.forEach { slug ->
+            Chip(vm.provinceName(slug) ?: slug, vm.cityFilter == slug) { vm.cityFilter = if (vm.cityFilter == slug) null else slug }
+        }
+        Surface(onClick = vm::openSetup, shape = CircleShape, color = Color.Transparent, contentColor = palette.accentText, border = BorderStroke(1.dp, palette.line)) {
+            Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ic_plus), "Şehir ekle", Modifier.size(20.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = if (selected) palette.text else Color.Transparent,
+        contentColor = if (selected) palette.bg else palette.text,
+        border = if (selected) null else BorderStroke(1.dp, palette.line),
+    ) {
+        Box(Modifier.heightIn(min = 42.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) { Text(label, style = type(16)) }
+    }
+}
+
+// Two weeks of days; the dots say how many tenders a day has (three at most), and touching a day shows only it.
+@Composable
+private fun DayStrip(today: LocalDate, picked: LocalDate?, tenders: List<Tender>, onPick: (LocalDate) -> Unit) {
+    val counts = remember(tenders) { tenders.groupingBy { it.date }.eachCount() }
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        repeat(STRIP_DAYS) { i ->
+            val day = today.plusDays(i.toLong())
+            val count = counts[day] ?: 0
+            val on = day == picked
+            Surface(
+                onClick = { onPick(day) },
+                shape = Sharp,
+                color = if (on) palette.accent else Color.Transparent,
+                contentColor = when { on -> palette.onAccent; count > 0 -> palette.text; else -> palette.faint },
+            ) {
+                Column(Modifier.widthIn(min = 50.dp).padding(top = 8.dp, bottom = 7.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(if (i == 0) "Bugün" else day.weekdayShort(), style = type(13, lineHeight = 1.3f))
+                    Text(day.dayOfMonth.toString(), style = type(22, FontWeight.SemiBold, 1.15f))
+                    Row(Modifier.padding(top = 3.dp).height(6.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        repeat(minOf(count, 3)) { Box(Modifier.size(5.dp).background(if (on) palette.onAccent else palette.accent, CircleShape)) }
+                    }
+                }
             }
         }
     }
 }
 
-// The tender's type as a coloured dot and a word, so the four types can be told apart at a glance.
-@Composable
-private fun CategoryLabel(category: Category?) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(10.dp).background(categoryColor(category), CircleShape))
-        Spacer(Modifier.width(8.dp))
-        Text(category?.label ?: "İhale", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+// The sections of a list: a heading per day, then that day's tenders.
+private fun LazyListScope.days(vm: MainViewModel, groups: List<Pair<LocalDate?, List<Tender>>>, today: LocalDate, showCity: Boolean) {
+    groups.forEach { (day, tenders) ->
+        item(key = "day-$day") {
+            if (day == null) DayHeader("Tarihi belli değil", "", urgent = false)
+            else DayHeader(dayTitle(day, today), dayMonth(day, today), urgent = day == today)
+        }
+        items(tenders, key = { it.ikn }) { tender ->
+            val context = LocalContext.current
+            TenderRow(tender, showCity, vm.isFavorite(tender), onOpen = { vm.selected = tender }) {
+                Toast.makeText(context, if (vm.isFavorite(tender)) "Favorilerden çıkarıldı" else "Favorilere eklendi", Toast.LENGTH_SHORT).show()
+                vm.toggleFavorite(tender)
+            }
+        }
     }
 }
 
+// Saved tenders, laid out like the agenda. They are kept whole on the device, so they stay after the bulletin
+// drops them.
 @Composable
-private fun InfoLine(icon: Int, text: String, maxLines: Int) {
-    Row(verticalAlignment = Alignment.Top) {
-        Icon(painterResource(icon), null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp).size(18.dp))
-        Spacer(Modifier.width(10.dp))
-        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-@Composable
-fun Tag(text: String, container: Color, content: Color) {
-    Surface(color = container, contentColor = content, shape = RoundedCornerShape(50)) {
-        Text(text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
-    }
-}
-
-@Composable
-fun SearchField(value: String, onChange: (String) -> Unit, hint: String) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onChange,
-        placeholder = { Text(hint) },
-        leadingIcon = { Icon(painterResource(R.drawable.ic_search), null) },
-        trailingIcon = if (value.isNotEmpty()) ({ TextButton(onClick = { onChange("") }) { Text("Temizle") } }) else null,
-        singleLine = true,
-        textStyle = MaterialTheme.typography.bodyLarge,
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth(),
-    )
-}
-
-@Composable
-fun Loading() {
-    Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-}
-
-@Composable
-fun Empty(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.bodyLarge,
-        textAlign = TextAlign.Center,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp, horizontal = 24.dp),
-    )
-}
-
-@Composable
-fun Problem(text: String, onRetry: () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(text, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        OutlinedButton(onClick = onRetry, modifier = Modifier.heightIn(min = 52.dp)) { Text("Tekrar dene") }
-    }
-}
-
-@Composable
-fun BackRow(title: String, onBack: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack, modifier = Modifier.size(56.dp)) { Icon(painterResource(R.drawable.ic_back), "Geri") }
-        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+private fun Saved(vm: MainViewModel) {
+    val today = LocalDate.now()
+    val groups = remember(vm.favorites) { vm.favorites.byDay() }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
+        item { Headline("${vm.favorites.size} favori ihale", "İlandan kalksalar da burada dururlar.") }
+        if (groups.isEmpty()) item { Note(R.drawable.ic_star, "Henüz favori ihale yok. Ajandada bir ihalenin yanındaki yıldıza dokun.") }
+        else days(vm, groups, today, showCity = true)
     }
 }

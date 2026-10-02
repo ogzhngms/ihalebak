@@ -43,7 +43,7 @@ class WatchWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                 failed = true
                 continue
             }
-            val fresh = newTenders(tenders, settings.seen(slug), settings.watchedCategories)
+            val fresh = newTenders(tenders, settings.seen(slug), settings.categories)
             settings.markSeen(slug, tenders.map { it.ikn }.toSet())
             if (fresh.isNotEmpty()) notify(applicationContext, slug, names[slug] ?: slug, fresh)
         }
@@ -72,7 +72,7 @@ private const val CHANNEL = "new_tenders"
 
 fun createNotificationChannel(context: Context) {
     val channel = NotificationChannel(CHANNEL, "Yeni ihaleler", NotificationManager.IMPORTANCE_DEFAULT).apply {
-        description = "Takip ettiğin illerde yeni ihale çıkınca"
+        description = "Seçtiğin şehirlerde yeni ihale çıkınca"
     }
     context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
 }
